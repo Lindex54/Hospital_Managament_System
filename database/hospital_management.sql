@@ -36,6 +36,8 @@ DROP TABLE IF EXISTS visits;
 DROP TABLE IF EXISTS patients;
 DROP TABLE IF EXISTS staff;
 DROP TABLE IF EXISTS users;
+DROP TABLE IF EXISTS role_permissions;
+DROP TABLE IF EXISTS permissions;
 DROP TABLE IF EXISTS roles;
 DROP TABLE IF EXISTS departments;
 
@@ -57,6 +59,29 @@ CREATE TABLE roles (
     description TEXT DEFAULT NULL,
     created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB;
+
+CREATE TABLE permissions (
+    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(100) NOT NULL UNIQUE,
+    label VARCHAR(150) NOT NULL,
+    module VARCHAR(100) NOT NULL,
+    description TEXT DEFAULT NULL,
+    created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    INDEX idx_permissions_module (module)
+) ENGINE=InnoDB;
+
+CREATE TABLE role_permissions (
+    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    role_id BIGINT UNSIGNED NOT NULL,
+    permission_id BIGINT UNSIGNED NOT NULL,
+    created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_role_permissions_role
+        FOREIGN KEY (role_id) REFERENCES roles(id) ON DELETE CASCADE,
+    CONSTRAINT fk_role_permissions_permission
+        FOREIGN KEY (permission_id) REFERENCES permissions(id) ON DELETE CASCADE,
+    UNIQUE KEY uq_role_permission (role_id, permission_id)
 ) ENGINE=InnoDB;
 
 CREATE TABLE users (
@@ -573,11 +598,150 @@ CREATE TABLE audit_logs (
 INSERT INTO roles (name, description) VALUES
 ('Administrator', 'Full system administration access'),
 ('Doctor', 'Clinical consultation and treatment access'),
+('Emergency Doctor', 'Emergency triage, consultation and admission access'),
 ('Nurse', 'Nursing and vital signs workflow access'),
-('Pharmacist', 'Pharmacy and dispensing access'),
 ('Laboratory Technician', 'Laboratory request and result access'),
-('Receptionist', 'Front desk and patient registration access'),
-('Accountant', 'Billing and payment access');
+('Radiologist', 'Radiology request and imaging result access'),
+('Pharmacist', 'Pharmacy and dispensing access');
+
+INSERT INTO permissions (name, label, module, description) VALUES
+('dashboard.view', 'View Dashboard', 'dashboard', 'Access the main dashboard overview'),
+('patients.view', 'View Patients', 'patients', 'Access patient records'),
+('patients.create', 'Create Patients', 'patients', 'Create new patient records'),
+('patients.edit', 'Edit Patients', 'patients', 'Edit existing patient records'),
+('outpatient.view', 'View Outpatient', 'outpatient', 'Access outpatient workflows'),
+('outpatient.create', 'Create Outpatient Visit', 'outpatient', 'Create outpatient visits'),
+('inpatient.view', 'View Inpatient', 'inpatient', 'Access inpatient workflows'),
+('inpatient.admit', 'Admit Inpatient', 'inpatient', 'Admit inpatients'),
+('inpatient.discharge', 'Discharge Inpatient', 'inpatient', 'Discharge or refer inpatients'),
+('appointments.view', 'View Appointments', 'appointments', 'Access appointments'),
+('consultations.view', 'View Consultations', 'consultations', 'Access consultation records'),
+('consultations.create', 'Create Consultations', 'consultations', 'Create consultation records'),
+('emergency.view', 'View Emergency', 'emergency', 'Access emergency module'),
+('emergency.create', 'Create Emergency', 'emergency', 'Create emergency cases'),
+('emergency.triage', 'Emergency Triage', 'emergency', 'Triage emergency patients'),
+('emergency.consult', 'Emergency Consult', 'emergency', 'Consult emergency cases'),
+('emergency.admit', 'Emergency Admit', 'emergency', 'Admit emergency cases'),
+('emergency.discharge', 'Emergency Discharge', 'emergency', 'Discharge emergency cases'),
+('emergency.refer', 'Emergency Refer', 'emergency', 'Refer emergency cases'),
+('vitals.view', 'View Vitals', 'vitals', 'Access recorded vitals'),
+('vitals.create', 'Record Vitals', 'vitals', 'Create vitals records'),
+('wards.view', 'View Wards & Beds', 'wards', 'Access ward and bed pages'),
+('nursing.view', 'View Nursing Notes', 'nursing', 'Access nursing notes'),
+('nursing.create', 'Create Nursing Notes', 'nursing', 'Create nursing notes'),
+('laboratory.view', 'View Laboratory', 'laboratory', 'Access laboratory overview'),
+('laboratory.requests', 'Laboratory Requests', 'laboratory', 'Access laboratory requests'),
+('laboratory.sample_collection', 'Sample Collection', 'laboratory', 'Access sample collection'),
+('laboratory.results', 'Laboratory Results', 'laboratory', 'Access laboratory results'),
+('laboratory.reports', 'Laboratory Reports', 'laboratory', 'Access laboratory reports'),
+('radiology.view', 'View Radiology', 'radiology', 'Access radiology overview'),
+('radiology.requests', 'Radiology Requests', 'radiology', 'Access radiology requests'),
+('radiology.results', 'Radiology Results', 'radiology', 'Access radiology results'),
+('radiology.reports', 'Imaging Reports', 'radiology', 'Access imaging reports'),
+('pharmacy.view', 'View Pharmacy', 'pharmacy', 'Access pharmacy overview'),
+('pharmacy.prescriptions', 'Prescriptions', 'pharmacy', 'Access prescriptions'),
+('pharmacy.dispense', 'Medicine Dispensing', 'pharmacy', 'Dispense medicines'),
+('pharmacy.stock', 'Pharmacy Stock', 'pharmacy', 'Access pharmacy stock'),
+('pharmacy.reports', 'Pharmacy Reports', 'pharmacy', 'Access pharmacy reports'),
+('billing.view', 'View Billing', 'billing', 'Access billing pages'),
+('insurance.view', 'View Insurance', 'insurance', 'Access insurance pages'),
+('queue.view', 'View Queue', 'queue', 'Access queue pages'),
+('noticeboard.view', 'View Noticeboard', 'noticeboard', 'Access noticeboard pages'),
+('reports.view', 'View Reports', 'reports', 'Access reporting pages'),
+('settings.view', 'View Settings', 'settings', 'Access settings pages'),
+('users.manage', 'Manage Users & Roles', 'users', 'Manage users and roles');
+
+INSERT INTO role_permissions (role_id, permission_id)
+SELECT r.id, p.id
+FROM roles r
+CROSS JOIN permissions p
+WHERE r.name = 'Administrator';
+
+INSERT INTO role_permissions (role_id, permission_id)
+SELECT r.id, p.id
+FROM roles r
+INNER JOIN permissions p ON p.name IN (
+    'dashboard.view',
+    'patients.view',
+    'outpatient.view',
+    'inpatient.view',
+    'appointments.view',
+    'consultations.view',
+    'laboratory.results',
+    'radiology.results',
+    'pharmacy.prescriptions'
+)
+WHERE r.name = 'Doctor';
+
+INSERT INTO role_permissions (role_id, permission_id)
+SELECT r.id, p.id
+FROM roles r
+INNER JOIN permissions p ON p.name IN (
+    'dashboard.view',
+    'patients.view',
+    'emergency.view',
+    'emergency.triage',
+    'consultations.view',
+    'laboratory.requests',
+    'laboratory.results',
+    'radiology.requests',
+    'radiology.results',
+    'pharmacy.prescriptions',
+    'inpatient.admit',
+    'inpatient.discharge'
+)
+WHERE r.name = 'Emergency Doctor';
+
+INSERT INTO role_permissions (role_id, permission_id)
+SELECT r.id, p.id
+FROM roles r
+INNER JOIN permissions p ON p.name IN (
+    'dashboard.view',
+    'patients.view',
+    'vitals.view',
+    'vitals.create',
+    'inpatient.view',
+    'wards.view',
+    'nursing.view',
+    'nursing.create',
+    'emergency.triage'
+)
+WHERE r.name = 'Nurse';
+
+INSERT INTO role_permissions (role_id, permission_id)
+SELECT r.id, p.id
+FROM roles r
+INNER JOIN permissions p ON p.name IN (
+    'dashboard.view',
+    'laboratory.requests',
+    'laboratory.sample_collection',
+    'laboratory.results',
+    'laboratory.reports'
+)
+WHERE r.name = 'Laboratory Technician';
+
+INSERT INTO role_permissions (role_id, permission_id)
+SELECT r.id, p.id
+FROM roles r
+INNER JOIN permissions p ON p.name IN (
+    'dashboard.view',
+    'radiology.requests',
+    'radiology.results',
+    'radiology.reports'
+)
+WHERE r.name = 'Radiologist';
+
+INSERT INTO role_permissions (role_id, permission_id)
+SELECT r.id, p.id
+FROM roles r
+INNER JOIN permissions p ON p.name IN (
+    'dashboard.view',
+    'pharmacy.prescriptions',
+    'pharmacy.dispense',
+    'pharmacy.stock',
+    'pharmacy.reports'
+)
+WHERE r.name = 'Pharmacist';
 
 INSERT INTO departments (name, code, description) VALUES
 ('Administration', 'ADMIN', 'Administrative services'),
@@ -592,4 +756,3 @@ INSERT INTO medicine_categories (name, description) VALUES
 ('Antibiotics', 'Antibacterial medicines'),
 ('Painkillers', 'Analgesic medicines'),
 ('Vaccines', 'Preventive immunization medicines');
-

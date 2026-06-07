@@ -403,6 +403,11 @@
     min-width: 1280px;
   }
 
+  .module-page-shell {
+    @apply grid gap-6;
+    min-width: 0;
+  }
+
   .mini-sparkline {
     @apply mt-4 h-10 w-full;
   }
@@ -737,5 +742,9 @@
 
   .dashboard-grid {
     min-width: 1024px;
+  }
+
+  .module-page-shell {
+    min-width: 0;
   }
 }
