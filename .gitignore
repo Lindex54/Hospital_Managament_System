@@ -1,0 +1,15 @@
+node_modules/
+public/assets/css/output.css
+storage/logs/*.log
+storage/backups/*
+uploads/patients/*
+uploads/staff/*
+uploads/lab-results/*
+uploads/documents/*
+!uploads/patients/.gitkeep
+!uploads/staff/.gitkeep
+!uploads/lab-results/.gitkeep
+!uploads/documents/.gitkeep
+!storage/logs/.gitkeep
+!storage/backups/.gitkeep
+
