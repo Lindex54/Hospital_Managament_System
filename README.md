@@ -29,6 +29,20 @@ Starter project structure for a modular Hospital Management System built with pl
 - Outpatient and inpatient flows should connect to shared patient and visit records.
 - Inpatient admissions should extend a visit through an `admissions` table.
 
+## Database Journey
+
+- `patients` is the single source of truth for patient identity.
+- `visits` records every hospital encounter and links the patient to a department and doctor.
+- `vitals` and `consultations` hang off each visit.
+- `admissions` extends a visit only when the patient is kept in hospital.
+- `wards`, `rooms`, `beds`, `bed_transfers`, and `discharges` handle inpatient stay history.
+- `lab_requests`, `lab_request_items`, and `lab_results` handle investigations requested during visits.
+- `prescriptions`, `prescription_items`, `medicines`, and `medicine_stock_movements` support treatment and pharmacy inventory.
+- `appointments` schedules future care without creating visits too early.
+- `invoices`, `invoice_items`, and `payments` support billing for services provided.
+- `users`, `roles`, `staff`, and `departments` support authentication and access control.
+- `audit_logs` tracks important actions for accountability.
+
 ## Getting Started
 
 1. Point your local web server document root to the `public/` directory when possible.

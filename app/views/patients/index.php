@@ -2,5 +2,7 @@
 
 declare(strict_types=1);
 
-// Patients list page placeholder.
+require_once dirname(__DIR__, 2) . '/helpers/module-pages.php';
+
+render_hospital_module_page('patients');
 
