@@ -22,6 +22,26 @@ $currentPage = array_key_exists($requestedPage, $pages) ? $requestedPage : 'dash
 $pageTitle = $pages[$currentPage]['title'];
 $requiredPermission = $pages[$currentPage]['permission'] ?? null;
 
+if ($currentPage === 'outpatient') {
+    require_once dirname(__DIR__) . '/app/handlers/visit-handler.php';
+    handle_outpatient_visit_submission();
+}
+
+if ($currentPage === 'inpatient') {
+    require_once dirname(__DIR__) . '/app/handlers/admission-handler.php';
+    handle_inpatient_admission_submission();
+}
+
+if ($currentPage === 'appointments') {
+    require_once dirname(__DIR__) . '/app/handlers/appointment-handler.php';
+    handle_appointment_submission();
+}
+
+if ($currentPage === 'consultations') {
+    require_once dirname(__DIR__) . '/app/handlers/consultation-handler.php';
+    handle_consultation_submission();
+}
+
 /*
 |--------------------------------------------------------------------------
 | Backend permission gate
@@ -42,9 +62,15 @@ if ($requiredPermission !== null && !hasPermission($requiredPermission)) {
     | The dashboard keeps its dedicated layout, while all other static module
     | pages are rendered through the shared module page template.
     */
-    $viewFile = $pages[$currentPage]['view'] === 'dashboard'
-        ? dirname(__DIR__) . '/app/views/dashboard.php'
-        : dirname(__DIR__) . '/app/views/module-page.php';
+    $viewKey = $pages[$currentPage]['view'];
+
+    if ($viewKey === 'dashboard') {
+        $viewFile = dirname(__DIR__) . '/app/views/dashboard.php';
+    } elseif ($viewKey === 'module') {
+        $viewFile = dirname(__DIR__) . '/app/views/module-page.php';
+    } else {
+        $viewFile = dirname(__DIR__) . '/app/views/' . ltrim($viewKey, '/') . '.php';
+    }
 }
 
 require_once dirname(__DIR__) . '/app/includes/header.php';

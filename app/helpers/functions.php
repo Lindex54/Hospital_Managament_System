@@ -24,6 +24,19 @@ function asset_url(string $path = ''): string
     return base_url('assets/' . $path);
 }
 
+function versioned_asset_url(string $path = ''): string
+{
+    $path = ltrim($path, '/');
+    $assetUrl = asset_url($path);
+    $assetFile = APP_ROOT . '/public/assets/' . $path;
+
+    if (!is_file($assetFile)) {
+        return $assetUrl;
+    }
+
+    return $assetUrl . '?v=' . filemtime($assetFile);
+}
+
 function e(?string $value): string
 {
     return htmlspecialchars((string) $value, ENT_QUOTES, 'UTF-8');
@@ -34,4 +47,3 @@ function redirect(string $path): void
     header('Location: ' . $path);
     exit;
 }
-

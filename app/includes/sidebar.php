@@ -111,9 +111,9 @@ $navigationGroups = load_app_data('navigation.php');
             </nav>
 
             <div class="sidebar-footer mt-4 border-t border-white/10 pt-4">
-                <a class="sidebar-link flex items-center gap-3 rounded-[16px] bg-white/5" href="#">
+                <button class="sidebar-link flex w-full items-center gap-3 rounded-[16px] bg-white/5 text-left" type="button">
                     <span class="h-5 w-5 [&_svg]:h-5 [&_svg]:w-5"><?= sidebar_icon('collapse'); ?></span>
                     <span>Collapse Menu</span>
-                </a>
+                </button>
             </div>
         </aside>

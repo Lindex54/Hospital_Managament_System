@@ -47,4 +47,3 @@ return [
     'settings' => ['title' => 'Settings', 'view' => 'module', 'permission' => 'settings.view'],
     'users' => ['title' => 'Users & Roles', 'view' => 'module', 'permission' => 'users.manage'],
 ];
-
