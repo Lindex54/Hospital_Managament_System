@@ -19,6 +19,7 @@ return [
         'label' => 'Clinical',
         'items' => [
             ['label' => 'Patients', 'icon' => 'patients', 'url' => 'patients', 'permission' => 'patients.view'],
+            ['label' => 'Doctors', 'icon' => 'doctors', 'url' => 'doctors', 'permission' => 'users.manage'],
             ['label' => 'Outpatient', 'icon' => 'outpatient', 'url' => 'outpatient', 'permission' => 'outpatient.view'],
             ['label' => 'Inpatient', 'icon' => 'inpatient', 'url' => 'inpatient', 'permission' => 'inpatient.view'],
             ['label' => 'Appointments', 'icon' => 'appointments', 'url' => 'appointments', 'permission' => 'appointments.view'],
@@ -67,4 +68,3 @@ return [
         ],
     ],
 ];
-

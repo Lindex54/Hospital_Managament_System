@@ -12,6 +12,7 @@ return [
      */
     'dashboard' => ['title' => 'Dashboard', 'view' => 'dashboard', 'permission' => 'dashboard.view'],
     'patients' => ['title' => 'Patients', 'view' => 'module', 'permission' => 'patients.view'],
+    'doctors' => ['title' => 'Doctors', 'view' => 'module', 'permission' => 'users.manage'],
     'outpatient' => ['title' => 'Outpatient', 'view' => 'module', 'permission' => 'outpatient.view'],
     'inpatient' => ['title' => 'Inpatient', 'view' => 'module', 'permission' => 'inpatient.view'],
     'appointments' => ['title' => 'Appointments', 'view' => 'module', 'permission' => 'appointments.view'],

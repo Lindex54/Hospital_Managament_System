@@ -35,6 +35,20 @@ return [
             ['PAT-0004', 'Linda Namatovu', 'Female', '+256 703 888 999', '20 May 2026', 'Active'],
         ],
     ],
+    'doctors' => [
+        'title' => 'Doctors',
+        'description' => 'Register clinicians first so consultations, visits, appointments, and admissions can assign doctors from the live database.',
+        'icon' => 'doctors',
+        'actions' => ['Add Doctor', 'Export Roster', 'Department Coverage'],
+        'stats' => [
+            ['Registered Doctors', '0'],
+            ['Active Roster', '0'],
+            ['Consultants', '0'],
+            ['Departments Covered', '0'],
+        ],
+        'columns' => ['Doctor Code', 'Name', 'Role', 'Department', 'Status', 'Joined'],
+        'rows' => [],
+    ],
     'outpatient' => [
         'title' => 'Outpatient',
         'description' => 'Track OPD visits from reception and triage through consultation, billing, and follow-up.',

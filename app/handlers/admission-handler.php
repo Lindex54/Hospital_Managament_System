@@ -133,7 +133,7 @@ function handle_inpatient_admission_submission(): void
         return;
     }
 
-    if (($GLOBALS['currentPage'] ?? '') !== 'inpatient') {
+    if (!in_array(($GLOBALS['currentPage'] ?? ''), ['inpatient', 'inpatient-admission'], true)) {
         return;
     }
 
@@ -150,5 +150,6 @@ function handle_inpatient_admission_submission(): void
         admission_flash('error', $exception->getMessage());
     }
 
-    redirect(base_url('index.php?page=inpatient'));
+    $redirectPage = ($GLOBALS['currentPage'] ?? '') === 'inpatient-admission' ? 'inpatient-admission' : 'inpatient';
+    redirect(base_url('index.php?page=' . $redirectPage));
 }

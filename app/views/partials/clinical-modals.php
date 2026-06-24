@@ -33,16 +33,16 @@ function render_patient_modal_form(): string
 {
     ob_start();
     ?>
-    <form class="grid gap-6 xl:grid-cols-[1.25fr_0.75fr]">
+    <form class="grid gap-6 xl:grid-cols-[1.25fr_0.75fr]" method="post">
+        <input type="hidden" name="form_action" value="create_patient">
         <article class="panel space-y-6">
             <div>
                 <h3 class="section-title">Identity</h3>
                 <div class="mt-4 grid gap-4 md:grid-cols-2">
-                    <div><label for="patient_number">Patient Number<span class="required-mark">*</span></label><input class="form-input mt-2" id="patient_number" name="patient_number" type="text" placeholder="PAT-0001" required></div>
-                    <div><label for="national_id">National ID</label><input class="form-input mt-2" id="national_id" name="national_id" type="text"></div>
                     <div><label for="first_name">First Name<span class="required-mark">*</span></label><input class="form-input mt-2" id="first_name" name="first_name" type="text" required></div>
                     <div><label for="middle_name">Middle Name</label><input class="form-input mt-2" id="middle_name" name="middle_name" type="text"></div>
                     <div><label for="last_name">Last Name<span class="required-mark">*</span></label><input class="form-input mt-2" id="last_name" name="last_name" type="text" required></div>
+                    <div><label for="national_id">National ID</label><input class="form-input mt-2" id="national_id" name="national_id" type="text"></div>
                     <div>
                         <label for="date_of_birth">Date of Birth<span class="required-mark">*</span></label>
                         <input class="form-input mt-2" id="date_of_birth" name="date_of_birth" type="date" data-patient-dob required>
@@ -98,6 +98,43 @@ function render_patient_modal_form(): string
             <div><label for="allergies">Allergies</label><textarea class="form-input mt-2 min-h-[130px] py-3" id="allergies" name="allergies"></textarea></div>
             <div><label for="notes">Notes</label><textarea class="form-input mt-2 min-h-[150px] py-3" id="notes" name="notes"></textarea></div>
             <div class="flex flex-wrap gap-3 pt-2"><button class="btn btn-primary" type="submit">Save Patient</button><button class="btn btn-secondary" type="reset">Reset Form</button></div>
+        </article>
+    </form>
+    <?php
+
+    return (string) ob_get_clean();
+}
+
+function render_doctor_modal_form(array $departments): string
+{
+    ob_start();
+    ?>
+    <form class="grid gap-6 xl:grid-cols-[1.05fr_0.95fr]" method="post">
+        <input type="hidden" name="form_action" value="create_doctor">
+        <article class="panel space-y-6">
+            <div>
+                <h3 class="section-title">Professional Profile</h3>
+                <div class="mt-4 grid gap-4 md:grid-cols-2">
+                    <div><label for="doctor_professional_title">Professional Title<span class="required-mark">*</span></label><select class="form-input mt-2" id="doctor_professional_title" name="professional_title" required><option value="">Select title</option><option value="Dr.">Dr.</option><option value="Prof. Dr.">Prof. Dr.</option><option value="Assoc. Prof. Dr.">Assoc. Prof. Dr.</option><option value="Sr. Dr.">Sr. Dr.</option></select></div>
+                    <div><label for="doctor_grade">Doctor Grade<span class="required-mark">*</span></label><select class="form-input mt-2" id="doctor_grade" name="doctor_grade" required><option value="">Select grade</option><option value="Medical Officer">Medical Officer</option><option value="Consultant">Consultant</option><option value="Specialist">Specialist</option><option value="Surgeon">Surgeon</option><option value="Physician">Physician</option><option value="Registrar">Registrar</option><option value="Resident">Resident</option><option value="Intern Doctor">Intern Doctor</option></select></div>
+                    <div><label for="doctor_first_name">First Name<span class="required-mark">*</span></label><input class="form-input mt-2" id="doctor_first_name" name="first_name" type="text" required></div>
+                    <div><label for="doctor_last_name">Last Name<span class="required-mark">*</span></label><input class="form-input mt-2" id="doctor_last_name" name="last_name" type="text" required></div>
+                    <div><label for="doctor_gender">Gender<span class="required-mark">*</span></label><select class="form-input mt-2" id="doctor_gender" name="gender" required><option value="">Select gender</option><option value="male">Male</option><option value="female">Female</option><option value="other">Other</option></select></div>
+                    <div><label for="doctor_department_id">Department<span class="required-mark">*</span></label><select class="form-input mt-2" id="doctor_department_id" name="department_id" required><option value="">Select department</option><?php foreach ($departments as $department): ?><option value="<?= e((string) $department['id']); ?>"><?= e((string) $department['name']); ?></option><?php endforeach; ?></select></div>
+                    <div class="md:col-span-2"><label for="doctor_specialty_focus">Specialty / Focus Area</label><input class="form-input mt-2" id="doctor_specialty_focus" name="specialty_focus" type="text" placeholder="e.g. Cardiology, Pediatrics, General Surgery"></div>
+                    <div><label for="doctor_hire_date">Hire Date<span class="required-mark">*</span></label><input class="form-input mt-2" id="doctor_hire_date" name="hire_date" type="date" required></div>
+                    <div><label for="doctor_status">Status<span class="required-mark">*</span></label><select class="form-input mt-2" id="doctor_status" name="status" required><option value="active">Active</option><option value="inactive">Inactive</option></select></div>
+                </div>
+            </div>
+        </article>
+        <article class="panel space-y-4">
+            <div><label for="doctor_phone">Phone<span class="required-mark">*</span></label><input class="form-input mt-2" id="doctor_phone" name="phone" type="tel" required></div>
+            <div><label for="doctor_email">Email</label><input class="form-input mt-2" id="doctor_email" name="email" type="email"></div>
+            <div class="rounded-xl border border-hospital-borderSoft bg-white px-4 py-4">
+                <p class="text-sm font-bold text-hospital-ink">How this works</p>
+                <p class="mt-2 text-sm leading-6 text-hospital-secondary">Every doctor you save here is written to the `staff` table and becomes available immediately in doctor assignment dropdowns across visits, appointments, consultations, emergency intake, and admission workflows.</p>
+            </div>
+            <div class="flex flex-wrap gap-3 pt-2"><button class="btn btn-primary" type="submit">Save Doctor</button><button class="btn btn-secondary" type="reset">Reset Form</button></div>
         </article>
     </form>
     <?php
@@ -220,7 +257,8 @@ function render_emergency_modal_form(array $patients, array $departments, array 
 {
     ob_start();
     ?>
-    <form class="grid gap-6 xl:grid-cols-[1fr_1fr]">
+    <form class="grid gap-6 xl:grid-cols-[1fr_1fr]" method="post">
+        <input type="hidden" name="form_action" value="create_emergency_visit">
         <article class="panel space-y-6">
             <div class="grid gap-4 md:grid-cols-2">
                 <div class="md:col-span-2"><label for="emergency_patient_id">Patient<span class="required-mark">*</span></label><select class="form-input mt-2" id="emergency_patient_id" name="patient_id" required><option value="">Select patient</option><?php foreach ($patients as $patient): ?><option value="<?= e((string) $patient['id']); ?>"><?= e((string) $patient['patient_number'] . ' - ' . clinical_form_patient_name($patient)); ?></option><?php endforeach; ?></select></div>
@@ -235,7 +273,7 @@ function render_emergency_modal_form(array $patients, array $departments, array 
             <div><label for="emergency_complaint">Presenting Complaint<span class="required-mark">*</span></label><textarea class="form-input mt-2 min-h-[130px] py-3" id="emergency_complaint" name="presenting_complaint" required></textarea></div>
             <div><label for="emergency_status">Status<span class="required-mark">*</span></label><select class="form-input mt-2" id="emergency_status" name="status" required><option value="open">Open</option><option value="stabilized">Stabilized</option><option value="admitted">Admitted</option><option value="closed">Closed</option></select></div>
             <div><label for="emergency_notes">Notes</label><textarea class="form-input mt-2 min-h-[170px] py-3" id="emergency_notes" name="notes"></textarea></div>
-            <div class="flex flex-wrap gap-3 pt-2"><button class="btn btn-primary" type="button">Save Emergency Case</button><button class="btn btn-secondary" type="reset">Reset Form</button></div>
+            <div class="flex flex-wrap gap-3 pt-2"><button class="btn btn-primary" type="submit">Save Emergency Case</button><button class="btn btn-secondary" type="reset">Reset Form</button></div>
         </article>
     </form>
     <?php
@@ -247,7 +285,8 @@ function render_triage_modal_form(array $patients, array $visits, array $doctors
 {
     ob_start();
     ?>
-    <form class="grid gap-6 xl:grid-cols-[1fr_1fr]">
+    <form class="grid gap-6 xl:grid-cols-[1fr_1fr]" method="post">
+        <input type="hidden" name="form_action" value="create_triage_record">
         <article class="panel space-y-6">
             <div class="grid gap-4 md:grid-cols-2">
                 <div class="md:col-span-2"><label for="triage_patient_id">Patient<span class="required-mark">*</span></label><select class="form-input mt-2" id="triage_patient_id" name="patient_id" required><option value="">Select patient</option><?php foreach ($patients as $patient): ?><option value="<?= e((string) $patient['id']); ?>"><?= e((string) $patient['patient_number'] . ' - ' . clinical_form_patient_name($patient)); ?></option><?php endforeach; ?></select></div>
@@ -262,7 +301,7 @@ function render_triage_modal_form(array $patients, array $visits, array $doctors
             <div><label for="triage_complaint">Complaint Summary<span class="required-mark">*</span></label><textarea class="form-input mt-2 min-h-[120px] py-3" id="triage_complaint" name="complaint_summary" required></textarea></div>
             <div><label for="triage_observations">Initial Observations<span class="required-mark">*</span></label><textarea class="form-input mt-2 min-h-[140px] py-3" id="triage_observations" name="observations" required></textarea></div>
             <div><label for="triage_notes">Notes</label><textarea class="form-input mt-2 min-h-[160px] py-3" id="triage_notes" name="notes"></textarea></div>
-            <div class="flex flex-wrap gap-3 pt-2"><button class="btn btn-primary" type="button">Save Triage</button><button class="btn btn-secondary" type="reset">Reset Form</button></div>
+            <div class="flex flex-wrap gap-3 pt-2"><button class="btn btn-primary" type="submit">Save Triage</button><button class="btn btn-secondary" type="reset">Reset Form</button></div>
         </article>
     </form>
     <?php
@@ -274,7 +313,8 @@ function render_emergency_triage_modal_form(array $patients, array $visits, arra
 {
     ob_start();
     ?>
-    <form class="grid gap-6 xl:grid-cols-[1fr_1fr]">
+    <form class="grid gap-6 xl:grid-cols-[1fr_1fr]" method="post">
+        <input type="hidden" name="form_action" value="create_emergency_triage_record">
         <article class="panel space-y-6">
             <div class="grid gap-4 md:grid-cols-2">
                 <div class="md:col-span-2"><label for="emergency_triage_patient_id">Patient<span class="required-mark">*</span></label><select class="form-input mt-2" id="emergency_triage_patient_id" name="patient_id" required><option value="">Select patient</option><?php foreach ($patients as $patient): ?><option value="<?= e((string) $patient['id']); ?>"><?= e((string) $patient['patient_number'] . ' - ' . clinical_form_patient_name($patient)); ?></option><?php endforeach; ?></select></div>
@@ -289,7 +329,7 @@ function render_emergency_triage_modal_form(array $patients, array $visits, arra
             <div><label for="emergency_triage_findings">Emergency Findings<span class="required-mark">*</span></label><textarea class="form-input mt-2 min-h-[130px] py-3" id="emergency_triage_findings" name="findings" required></textarea></div>
             <div><label for="emergency_triage_action">Immediate Action Taken<span class="required-mark">*</span></label><textarea class="form-input mt-2 min-h-[140px] py-3" id="emergency_triage_action" name="action_taken" required></textarea></div>
             <div><label for="emergency_triage_notes">Handover Notes</label><textarea class="form-input mt-2 min-h-[160px] py-3" id="emergency_triage_notes" name="notes"></textarea></div>
-            <div class="flex flex-wrap gap-3 pt-2"><button class="btn btn-primary" type="button">Start Triage</button><button class="btn btn-secondary" type="reset">Reset Form</button></div>
+            <div class="flex flex-wrap gap-3 pt-2"><button class="btn btn-primary" type="submit">Start Triage</button><button class="btn btn-secondary" type="reset">Reset Form</button></div>
         </article>
     </form>
     <?php
@@ -301,7 +341,8 @@ function render_vitals_modal_form(array $patients, array $visits, array $doctors
 {
     ob_start();
     ?>
-    <form class="grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
+    <form class="grid gap-6 xl:grid-cols-[1.05fr_0.95fr]" method="post">
+        <input type="hidden" name="form_action" value="record_vitals">
         <article class="panel space-y-6">
             <div class="grid gap-4 md:grid-cols-2">
                 <div><label for="vitals_visit_id">Visit<span class="required-mark">*</span></label><select class="form-input mt-2" id="vitals_visit_id" name="visit_id" required><option value="">Select visit</option><?php foreach ($visits as $visit): ?><option value="<?= e((string) $visit['id']); ?>"><?= e((string) $visit['visit_number'] . ' - ' . clinical_form_patient_name($visit)); ?></option><?php endforeach; ?></select></div>
@@ -320,7 +361,7 @@ function render_vitals_modal_form(array $patients, array $visits, array $doctors
         </article>
         <article class="panel space-y-4">
             <div><label for="vitals_notes">Notes</label><textarea class="form-input mt-2 min-h-[220px] py-3" id="vitals_notes" name="notes"></textarea></div>
-            <div class="flex flex-wrap gap-3 pt-2"><button class="btn btn-primary" type="button">Record Vitals</button><button class="btn btn-secondary" type="reset">Clear Fields</button></div>
+            <div class="flex flex-wrap gap-3 pt-2"><button class="btn btn-primary" type="submit">Record Vitals</button><button class="btn btn-secondary" type="reset">Clear Fields</button></div>
         </article>
     </form>
     <?php
@@ -332,7 +373,8 @@ function render_ward_bed_modal_form(array $admissions, array $wards, array $room
 {
     ob_start();
     ?>
-    <form class="grid gap-6 xl:grid-cols-[1fr_1fr]">
+    <form class="grid gap-6 xl:grid-cols-[1fr_1fr]" method="post">
+        <input type="hidden" name="form_action" value="assign_bed">
         <article class="panel space-y-6">
             <div class="grid gap-4 md:grid-cols-2">
                 <div class="md:col-span-2"><label for="bed_assignment_admission_id">Admission<span class="required-mark">*</span></label><select class="form-input mt-2" id="bed_assignment_admission_id" name="admission_id" required><option value="">Select admission</option><?php foreach ($admissions as $admission): ?><option value="<?= e((string) $admission['id']); ?>"><?= e((string) $admission['admission_number'] . ' - ' . clinical_form_patient_name($admission)); ?></option><?php endforeach; ?></select></div>
@@ -344,7 +386,7 @@ function render_ward_bed_modal_form(array $admissions, array $wards, array $room
         </article>
         <article class="panel space-y-4">
             <div><label for="bed_assignment_reason">Reason / Notes</label><textarea class="form-input mt-2 min-h-[210px] py-3" id="bed_assignment_reason" name="notes"></textarea></div>
-            <div class="flex flex-wrap gap-3 pt-2"><button class="btn btn-primary" type="button">Assign Bed</button><button class="btn btn-secondary" type="reset">Reset Form</button></div>
+            <div class="flex flex-wrap gap-3 pt-2"><button class="btn btn-primary" type="submit">Assign Bed</button><button class="btn btn-secondary" type="reset">Reset Form</button></div>
         </article>
     </form>
     <?php
@@ -356,7 +398,8 @@ function render_nursing_notes_modal_form(array $patients, array $admissions, arr
 {
     ob_start();
     ?>
-    <form class="grid gap-6 xl:grid-cols-[1fr_1fr]">
+    <form class="grid gap-6 xl:grid-cols-[1fr_1fr]" method="post">
+        <input type="hidden" name="form_action" value="create_nursing_note">
         <article class="panel space-y-6">
             <div class="grid gap-4 md:grid-cols-2">
                 <div><label for="nursing_patient_id">Patient<span class="required-mark">*</span></label><select class="form-input mt-2" id="nursing_patient_id" name="patient_id" required><option value="">Select patient</option><?php foreach ($patients as $patient): ?><option value="<?= e((string) $patient['id']); ?>"><?= e((string) $patient['patient_number'] . ' - ' . clinical_form_patient_name($patient)); ?></option><?php endforeach; ?></select></div>
@@ -369,7 +412,7 @@ function render_nursing_notes_modal_form(array $patients, array $admissions, arr
         <article class="panel space-y-4">
             <div><label for="nursing_note_body">Nursing Note<span class="required-mark">*</span></label><textarea class="form-input mt-2 min-h-[190px] py-3" id="nursing_note_body" name="note_body" required></textarea></div>
             <div><label for="nursing_plan">Plan / Follow Up</label><textarea class="form-input mt-2 min-h-[140px] py-3" id="nursing_plan" name="plan"></textarea></div>
-            <div class="flex flex-wrap gap-3 pt-2"><button class="btn btn-primary" type="button">Save Note</button><button class="btn btn-secondary" type="reset">Reset Form</button></div>
+            <div class="flex flex-wrap gap-3 pt-2"><button class="btn btn-primary" type="submit">Save Note</button><button class="btn btn-secondary" type="reset">Reset Form</button></div>
         </article>
     </form>
     <?php
@@ -381,7 +424,8 @@ function render_discharge_modal_form(array $admissions, array $doctors): string
 {
     ob_start();
     ?>
-    <form class="grid gap-6 xl:grid-cols-[1fr_1fr]">
+    <form class="grid gap-6 xl:grid-cols-[1fr_1fr]" method="post">
+        <input type="hidden" name="form_action" value="create_discharge_record">
         <article class="panel space-y-6">
             <div class="grid gap-4 md:grid-cols-2">
                 <div class="md:col-span-2"><label for="discharge_admission_id">Admission<span class="required-mark">*</span></label><select class="form-input mt-2" id="discharge_admission_id" name="admission_id" required><option value="">Select admission</option><?php foreach ($admissions as $admission): ?><option value="<?= e((string) $admission['id']); ?>"><?= e((string) $admission['admission_number'] . ' - ' . clinical_form_patient_name($admission) . ' - ' . ($admission['ward_name'] ?? '')); ?></option><?php endforeach; ?></select></div>
@@ -394,7 +438,7 @@ function render_discharge_modal_form(array $admissions, array $doctors): string
         <article class="panel space-y-4">
             <div><label for="discharge_summary">Discharge Summary<span class="required-mark">*</span></label><textarea class="form-input mt-2 min-h-[150px] py-3" id="discharge_summary" name="discharge_summary" required></textarea></div>
             <div><label for="discharge_instructions">Instructions</label><textarea class="form-input mt-2 min-h-[120px] py-3" id="discharge_instructions" name="instructions"></textarea></div>
-            <div class="flex flex-wrap gap-3 pt-2"><button class="btn btn-primary" type="button">Prepare Discharge</button><button class="btn btn-secondary" type="reset">Reset Form</button></div>
+            <div class="flex flex-wrap gap-3 pt-2"><button class="btn btn-primary" type="submit">Prepare Discharge</button><button class="btn btn-secondary" type="reset">Reset Form</button></div>
         </article>
     </form>
     <?php

@@ -43,6 +43,16 @@ function clinical_form_fetch_doctors(int $limit = 100): array
          FROM staff
          INNER JOIN departments ON departments.id = staff.department_id
          WHERE staff.status = 'active'
+           AND (
+                LOWER(COALESCE(staff.job_title, '')) LIKE '%doctor%'
+                OR LOWER(COALESCE(staff.job_title, '')) LIKE '%consultant%'
+                OR LOWER(COALESCE(staff.job_title, '')) LIKE '%surgeon%'
+                OR LOWER(COALESCE(staff.job_title, '')) LIKE '%physician%'
+                OR LOWER(COALESCE(staff.job_title, '')) LIKE '%specialist%'
+                OR LOWER(COALESCE(staff.job_title, '')) LIKE '%medical officer%'
+                OR LOWER(COALESCE(staff.job_title, '')) LIKE '%registrar%'
+                OR LOWER(COALESCE(staff.job_title, '')) LIKE '%resident%'
+           )
          ORDER BY staff.first_name ASC, staff.last_name ASC
          LIMIT :limit_value"
     );

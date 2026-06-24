@@ -27,7 +27,22 @@ if ($currentPage === 'outpatient') {
     handle_outpatient_visit_submission();
 }
 
+if ($currentPage === 'patients') {
+    require_once dirname(__DIR__) . '/app/handlers/patient-handler.php';
+    handle_patient_submission();
+}
+
+if ($currentPage === 'doctors') {
+    require_once dirname(__DIR__) . '/app/handlers/doctor-handler.php';
+    handle_doctor_submission();
+}
+
 if ($currentPage === 'inpatient') {
+    require_once dirname(__DIR__) . '/app/handlers/admission-handler.php';
+    handle_inpatient_admission_submission();
+}
+
+if ($currentPage === 'inpatient-admission') {
     require_once dirname(__DIR__) . '/app/handlers/admission-handler.php';
     handle_inpatient_admission_submission();
 }
@@ -40,6 +55,36 @@ if ($currentPage === 'appointments') {
 if ($currentPage === 'consultations') {
     require_once dirname(__DIR__) . '/app/handlers/consultation-handler.php';
     handle_consultation_submission();
+}
+
+if ($currentPage === 'emergency') {
+    require_once dirname(__DIR__) . '/app/handlers/emergency-handler.php';
+    handle_emergency_submission();
+}
+
+if ($currentPage === 'triage' || $currentPage === 'emergency-triage') {
+    require_once dirname(__DIR__) . '/app/handlers/triage-handler.php';
+    handle_triage_submission();
+}
+
+if ($currentPage === 'vitals') {
+    require_once dirname(__DIR__) . '/app/handlers/vitals-handler.php';
+    handle_vitals_submission();
+}
+
+if ($currentPage === 'ward-beds') {
+    require_once dirname(__DIR__) . '/app/handlers/ward-handler.php';
+    handle_ward_submission();
+}
+
+if ($currentPage === 'nursing-notes') {
+    require_once dirname(__DIR__) . '/app/handlers/nursing-handler.php';
+    handle_nursing_submission();
+}
+
+if ($currentPage === 'discharge-referral') {
+    require_once dirname(__DIR__) . '/app/handlers/discharge-handler.php';
+    handle_discharge_submission();
 }
 
 /*
