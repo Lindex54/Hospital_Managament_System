@@ -186,6 +186,10 @@ function hospital_module_note_value(?string $notes, string $label): string
 
 function hospital_module_render_records_table(array $page): string
 {
+    $badgeColumns = isset($page['badge_columns']) && is_array($page['badge_columns'])
+        ? array_map('intval', $page['badge_columns'])
+        : null;
+
     ob_start();
     ?>
     <div class="table-shell">
@@ -207,7 +211,12 @@ function hospital_module_render_records_table(array $page): string
                     <tr>
                         <?php foreach ($row as $index => $cell): ?>
                             <td>
-                                <?php if ($index >= count($row) - 2): ?>
+                                <?php
+                                $isBadgeColumn = $badgeColumns !== null
+                                    ? in_array($index, $badgeColumns, true)
+                                    : $index >= count($row) - 2;
+                                ?>
+                                <?php if ($isBadgeColumn): ?>
                                     <span class="status-pill <?= e(hospital_module_badge_class((string) $cell)); ?>"><?= e((string) $cell); ?></span>
                                 <?php else: ?>
                                     <?php if ($index === 0 || $index === 1): ?>
@@ -226,6 +235,99 @@ function hospital_module_render_records_table(array $page): string
     <?php
 
     return (string) ob_get_clean();
+}
+
+function hospital_module_render_bed_room_overview(array $roomRows, array $bedRows): string
+{
+    ob_start();
+    ?>
+    <section class="grid gap-6 xl:grid-cols-2">
+        <article class="chart-card">
+            <div class="flex items-center justify-between gap-4">
+                <h3 class="section-title">Room Availability</h3>
+                <span class="badge badge-info">Live Database</span>
+            </div>
+            <div class="mt-5 space-y-3">
+                <?php if ($roomRows === []): ?>
+                    <p class="text-sm text-hospital-secondary">No rooms found yet.</p>
+                <?php endif; ?>
+                <?php foreach ($roomRows as $room): ?>
+                    <div class="rounded-xl border border-hospital-borderSoft bg-white px-4 py-4">
+                        <div class="flex items-start justify-between gap-4">
+                            <div>
+                                <p class="text-sm font-bold text-hospital-ink"><?= e((string) $room['label']); ?></p>
+                                <p class="mt-1 text-sm text-hospital-secondary"><?= e((string) $room['subtext']); ?></p>
+                            </div>
+                            <span class="status-pill <?= e((string) $room['badge_class']); ?>"><?= e((string) $room['status']); ?></span>
+                        </div>
+                        <p class="mt-3 text-sm font-medium text-hospital-secondary"><?= e((string) $room['occupancy']); ?></p>
+                        <div class="mt-4 grid gap-3 sm:grid-cols-3">
+                            <div class="rounded-lg bg-hospital-primary/5 px-3 py-3">
+                                <p class="text-xs font-bold uppercase tracking-wide text-hospital-muted">Total Beds</p>
+                                <p class="mt-2 text-lg font-extrabold text-hospital-ink"><?= e((string) $room['total_beds']); ?></p>
+                            </div>
+                            <div class="rounded-lg bg-emerald-50 px-3 py-3">
+                                <p class="text-xs font-bold uppercase tracking-wide text-hospital-muted">Available</p>
+                                <p class="mt-2 text-lg font-extrabold text-emerald-600"><?= e((string) $room['available_beds']); ?></p>
+                            </div>
+                            <div class="rounded-lg bg-rose-50 px-3 py-3">
+                                <p class="text-xs font-bold uppercase tracking-wide text-hospital-muted">Taken</p>
+                                <p class="mt-2 text-lg font-extrabold text-rose-600"><?= e((string) $room['occupied_beds']); ?></p>
+                            </div>
+                        </div>
+                    </div>
+                <?php endforeach; ?>
+            </div>
+        </article>
+
+        <article class="chart-card">
+            <div class="flex items-center justify-between gap-4">
+                <h3 class="section-title">Bed Availability</h3>
+                <span class="badge badge-info">Live Database</span>
+            </div>
+            <div class="mt-5 space-y-3">
+                <?php if ($bedRows === []): ?>
+                    <p class="text-sm text-hospital-secondary">No beds found yet.</p>
+                <?php endif; ?>
+                <?php foreach ($bedRows as $bed): ?>
+                    <div class="rounded-xl border border-hospital-borderSoft bg-white px-4 py-4">
+                        <div class="flex items-start justify-between gap-4">
+                            <div>
+                                <p class="text-sm font-bold text-hospital-ink"><?= e((string) $bed['label']); ?></p>
+                                <p class="mt-1 text-sm text-hospital-secondary"><?= e((string) $bed['subtext']); ?></p>
+                            </div>
+                            <span class="status-pill <?= e((string) $bed['badge_class']); ?>"><?= e((string) $bed['status']); ?></span>
+                        </div>
+                        <p class="mt-3 text-sm font-medium text-hospital-secondary"><?= e((string) $bed['occupancy']); ?></p>
+                    </div>
+                <?php endforeach; ?>
+            </div>
+        </article>
+    </section>
+    <?php
+
+    return (string) ob_get_clean();
+}
+
+function hospital_module_room_availability_status(string $roomType, int $availableBeds, int $occupiedBeds): array
+{
+    $normalizedType = strtolower(trim($roomType));
+
+    if ($normalizedType === 'private') {
+        return $occupiedBeds > 0
+            ? ['Occupied', 'status-danger']
+            : ['Available', 'status-success'];
+    }
+
+    if ($occupiedBeds > 0 && $availableBeds > 0) {
+        return ['Partially Occupied', 'status-warning'];
+    }
+
+    if ($occupiedBeds > 0) {
+        return ['Occupied', 'status-danger'];
+    }
+
+    return ['Available', 'status-success'];
 }
 
 function hospital_module_patients_page_data(array $page, ?int $limit = 50): array
@@ -406,11 +508,12 @@ function hospital_module_inpatient_page_data(array $page, ?int $limit = 50): arr
     $statement = $pdo->query(hospital_module_apply_limit(
         "SELECT admissions.admission_number, admissions.status, admissions.admission_date,
                 patients.first_name, patients.middle_name, patients.last_name,
-                wards.name AS ward_name, beds.bed_number,
+                wards.name AS ward_name, rooms.room_number, rooms.room_type, beds.bed_number,
                 staff.first_name AS staff_first_name, staff.last_name AS staff_last_name
          FROM admissions
          INNER JOIN patients ON patients.id = admissions.patient_id
          LEFT JOIN wards ON wards.id = admissions.ward_id
+         LEFT JOIN rooms ON rooms.id = admissions.room_id
          LEFT JOIN beds ON beds.id = admissions.bed_id
          LEFT JOIN staff ON staff.id = admissions.admitted_by
          ORDER BY admissions.admission_date DESC, admissions.id DESC",
@@ -419,16 +522,25 @@ function hospital_module_inpatient_page_data(array $page, ?int $limit = 50): arr
 
     $rows = [];
     foreach ($statement->fetchAll(PDO::FETCH_ASSOC) as $admission) {
+        $roomLabel = trim(implode(' / ', array_filter([
+            (string) ($admission['ward_name'] ?? '-'),
+            trim((string) ($admission['room_number'] ?? '')) !== '' ? (string) $admission['room_number'] : null,
+            trim((string) ($admission['bed_number'] ?? '')) !== '' ? (string) $admission['bed_number'] : 'No Bed',
+        ], static fn ($value): bool => $value !== null && trim((string) $value) !== '')));
+
         $rows[] = [
             (string) ($admission['admission_number'] ?? '-'),
             hospital_module_patient_display_name($admission),
-            trim((string) (($admission['ward_name'] ?? '-') . ' / ' . ($admission['bed_number'] ?? 'No Bed'))),
+            $roomLabel,
+            trim((string) ($admission['room_type'] ?? 'General')) !== '' ? (string) $admission['room_type'] : 'General',
             hospital_module_staff_display_name($admission),
             ucfirst((string) ($admission['status'] ?? '-')),
             hospital_module_format_short_date($admission['admission_date'] ?? null),
         ];
     }
 
+    $page['columns'] = ['Admission No', 'Patient', 'Ward / Room / Bed', 'Room Type', 'Doctor', 'Status', 'Admitted'];
+    $page['badge_columns'] = [5];
     $page['stats'] = $stats;
     $page['rows'] = $rows;
     $page['empty_message'] = 'No inpatient admissions found yet.';
@@ -683,28 +795,33 @@ function hospital_module_ward_beds_page_data(array $page, ?int $limit = 50): arr
     $stats = [
         ['Occupied Beds', hospital_module_format_count((int) hospital_module_count("SELECT COUNT(*) FROM beds WHERE status = 'occupied'"))],
         ['Available Beds', hospital_module_format_count((int) hospital_module_count("SELECT COUNT(*) FROM beds WHERE status = 'available'"))],
-        ['Transfers Today', hospital_module_format_count((int) hospital_module_count("SELECT COUNT(*) FROM bed_transfers WHERE DATE(transferred_at) = CURRENT_DATE()"))],
-        ['Maintenance', hospital_module_format_count((int) hospital_module_count("SELECT COUNT(*) FROM beds WHERE status = 'maintenance'"))],
+        ['Taken Rooms', hospital_module_format_count((int) hospital_module_count("SELECT COUNT(*) FROM (SELECT rooms.id FROM rooms INNER JOIN beds ON beds.room_id = rooms.id WHERE rooms.status = 'active' GROUP BY rooms.id HAVING SUM(CASE WHEN beds.status = 'available' THEN 1 ELSE 0 END) = 0) AS taken_rooms"))],
+        ['Available Rooms', hospital_module_format_count((int) hospital_module_count("SELECT COUNT(*) FROM (SELECT rooms.id FROM rooms INNER JOIN beds ON beds.room_id = rooms.id WHERE rooms.status = 'active' GROUP BY rooms.id HAVING SUM(CASE WHEN beds.status = 'available' THEN 1 ELSE 0 END) > 0) AS available_rooms"))],
     ];
 
+    $bedSql = "SELECT wards.name AS ward_name, rooms.room_number, rooms.room_type, beds.bed_number, beds.status, beds.updated_at,
+                      patients.first_name, patients.middle_name, patients.last_name
+               FROM beds
+               INNER JOIN rooms ON rooms.id = beds.room_id
+               INNER JOIN wards ON wards.id = rooms.ward_id
+               LEFT JOIN admissions ON admissions.bed_id = beds.id AND admissions.status = 'active'
+               LEFT JOIN patients ON patients.id = admissions.patient_id
+               ORDER BY wards.name ASC, rooms.room_number ASC, beds.bed_number ASC";
+
     $statement = $pdo->query(hospital_module_apply_limit(
-        "SELECT wards.name AS ward_name, rooms.room_number, beds.bed_number, beds.status, beds.updated_at,
-                patients.first_name, patients.middle_name, patients.last_name
-         FROM beds
-         INNER JOIN rooms ON rooms.id = beds.room_id
-         INNER JOIN wards ON wards.id = rooms.ward_id
-         LEFT JOIN admissions ON admissions.bed_id = beds.id AND admissions.status = 'active'
-         LEFT JOIN patients ON patients.id = admissions.patient_id
-         ORDER BY wards.name ASC, rooms.room_number ASC, beds.bed_number ASC",
+        $bedSql,
         $limit
     ));
 
+    $bedRecords = $statement->fetchAll(PDO::FETCH_ASSOC);
+    $bedOverviewRecords = $pdo->query($bedSql)->fetchAll(PDO::FETCH_ASSOC);
     $rows = [];
-    foreach ($statement->fetchAll(PDO::FETCH_ASSOC) as $bed) {
+    foreach ($bedRecords as $bed) {
         $occupancyName = trim(clinical_form_patient_name($bed));
         $rows[] = [
             (string) ($bed['ward_name'] ?? '-'),
             (string) ($bed['room_number'] ?? '-'),
+            trim((string) ($bed['room_type'] ?? 'Other')) !== '' ? (string) $bed['room_type'] : 'Other',
             (string) ($bed['bed_number'] ?? '-'),
             $occupancyName !== '' ? $occupancyName : '-',
             ucfirst((string) ($bed['status'] ?? '-')),
@@ -712,9 +829,74 @@ function hospital_module_ward_beds_page_data(array $page, ?int $limit = 50): arr
         ];
     }
 
+    $roomStatement = $pdo->query(
+        "SELECT wards.name AS ward_name,
+                rooms.name AS room_name,
+                rooms.room_number,
+                rooms.room_type,
+                COUNT(beds.id) AS total_beds,
+                SUM(CASE WHEN beds.status = 'available' THEN 1 ELSE 0 END) AS available_beds,
+                SUM(CASE WHEN beds.status = 'occupied' THEN 1 ELSE 0 END) AS occupied_beds,
+                GROUP_CONCAT(
+                    DISTINCT CASE
+                        WHEN admissions.status = 'active'
+                            THEN TRIM(CONCAT_WS(' ', patients.first_name, patients.middle_name, patients.last_name))
+                        ELSE NULL
+                    END
+                    ORDER BY patients.first_name, patients.last_name
+                    SEPARATOR ', '
+                ) AS patient_names
+         FROM rooms
+         INNER JOIN wards ON wards.id = rooms.ward_id
+         LEFT JOIN beds ON beds.room_id = rooms.id
+         LEFT JOIN admissions ON admissions.bed_id = beds.id AND admissions.status = 'active'
+         LEFT JOIN patients ON patients.id = admissions.patient_id
+         WHERE rooms.status = 'active'
+         GROUP BY rooms.id, wards.name, rooms.name, rooms.room_number, rooms.room_type
+         ORDER BY wards.name ASC, rooms.room_number ASC"
+    );
+
+    $roomOverview = [];
+    foreach ($roomStatement->fetchAll(PDO::FETCH_ASSOC) as $room) {
+        $availableBeds = (int) ($room['available_beds'] ?? 0);
+        $occupiedBeds = (int) ($room['occupied_beds'] ?? 0);
+        [$statusLabel, $statusClass] = hospital_module_room_availability_status(
+            (string) ($room['room_type'] ?? 'Other'),
+            $availableBeds,
+            $occupiedBeds
+        );
+        $patientNames = trim((string) ($room['patient_names'] ?? ''));
+        $roomOverview[] = [
+            'label' => (string) (($room['ward_name'] ?? '-') . ' / ' . ($room['room_number'] ?? '-') . ' - ' . ($room['room_name'] ?? 'Room')),
+            'subtext' => trim((string) (($room['room_type'] ?? 'General') . ' room')),
+            'status' => $statusLabel,
+            'badge_class' => $statusClass,
+            'total_beds' => (int) ($room['total_beds'] ?? 0),
+            'available_beds' => $availableBeds,
+            'occupied_beds' => $occupiedBeds,
+            'occupancy' => $patientNames !== '' ? 'Assigned patient(s): ' . $patientNames : 'No patient is currently assigned to this room.',
+        ];
+    }
+
+    $bedOverview = [];
+    foreach ($bedOverviewRecords as $bed) {
+        $occupancyName = trim(clinical_form_patient_name($bed));
+        $status = ucfirst((string) ($bed['status'] ?? 'Unknown'));
+        $bedOverview[] = [
+            'label' => (string) (($bed['ward_name'] ?? '-') . ' / ' . ($bed['room_number'] ?? '-') . ' / ' . ($bed['bed_number'] ?? '-')),
+            'subtext' => trim((string) (($bed['room_type'] ?? 'Other') . ' room')) . ' • Updated ' . hospital_module_format_last_visit($bed['updated_at'] ?? null),
+            'status' => $status,
+            'badge_class' => hospital_module_badge_class($status),
+            'occupancy' => $occupancyName !== '' ? 'Assigned to ' . $occupancyName : 'No active admission on this bed.',
+        ];
+    }
+
+    $page['columns'] = ['Ward', 'Room', 'Room Type', 'Bed', 'Assigned Patient', 'Bed Status', 'Updated'];
+    $page['badge_columns'] = [5];
     $page['stats'] = $stats;
     $page['rows'] = $rows;
     $page['empty_message'] = 'No ward or bed records found yet.';
+    $page['supplementary_content_html'] = hospital_module_render_bed_room_overview($roomOverview, $bedOverview);
 
     return $page;
 }
@@ -943,6 +1125,12 @@ function render_hospital_module_page(string $key, array $actionAttributes = []):
                 </article>
             <?php endif; ?>
         </div>
+
+        <?php if (isset($page['supplementary_content_html'])): ?>
+            <div class="mt-6">
+                <?= (string) $page['supplementary_content_html']; ?>
+            </div>
+        <?php endif; ?>
     </section>
     <?php
 
@@ -1009,9 +1197,9 @@ function hospital_module_modal_config(string $key): ?array
             'content' => static fn (): string => render_inpatient_modal_form(
                 clinical_form_fetch_patients(),
                 clinical_form_fetch_visits(),
-                clinical_form_fetch_wards(),
-                clinical_form_fetch_rooms(),
-                clinical_form_fetch_beds(),
+                clinical_form_fetch_wards(true),
+                clinical_form_fetch_rooms(true),
+                clinical_form_fetch_beds(true),
                 clinical_form_fetch_doctors()
             ),
         ],
@@ -1112,9 +1300,9 @@ function hospital_module_modal_config(string $key): ?array
             'content' => static fn (): string => render_inpatient_modal_form(
                 clinical_form_fetch_patients(),
                 clinical_form_fetch_visits(),
-                clinical_form_fetch_wards(),
-                clinical_form_fetch_rooms(),
-                clinical_form_fetch_beds(),
+                clinical_form_fetch_wards(true),
+                clinical_form_fetch_rooms(true),
+                clinical_form_fetch_beds(true),
                 clinical_form_fetch_doctors()
             ),
         ],

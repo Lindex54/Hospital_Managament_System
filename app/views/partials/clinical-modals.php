@@ -142,6 +142,49 @@ function render_doctor_modal_form(array $departments): string
     return (string) ob_get_clean();
 }
 
+function render_ward_room_fields(int|string $index, array $room = []): string
+{
+    $roomName = (string) ($room['name'] ?? '');
+    $roomNumber = (string) ($room['room_number'] ?? '');
+    $roomType = (string) ($room['room_type'] ?? '');
+    $bedCount = (string) ($room['bed_count'] ?? '1');
+
+    ob_start();
+    ?>
+    <div class="rounded-xl border border-hospital-borderSoft bg-white/90 p-4" data-ward-room-item>
+        <div class="flex items-center justify-between gap-3">
+            <p class="text-sm font-bold text-hospital-ink">Room Entry</p>
+            <button class="btn btn-secondary px-4 py-2 text-xs" type="button" data-remove-room<?= $index === 0 ? ' hidden' : ''; ?>>Remove</button>
+        </div>
+        <div class="mt-4 grid gap-4 md:grid-cols-2">
+            <div>
+                <label>Room Name</label>
+                <input class="form-input mt-2" name="rooms[<?= e((string) $index); ?>][name]" type="text" placeholder="e.g. Pediatric Room A" value="<?= e($roomName); ?>">
+            </div>
+            <div>
+                <label>Room Number</label>
+                <input class="form-input mt-2" name="rooms[<?= e((string) $index); ?>][room_number]" type="text" placeholder="Optional, auto-generated if left empty" value="<?= e($roomNumber); ?>">
+            </div>
+            <div>
+                <label>Room Type<span class="required-mark">*</span></label>
+                <select class="form-input mt-2" name="rooms[<?= e((string) $index); ?>][room_type]" required>
+                    <option value="">Select room type</option>
+                    <option value="General"<?= $roomType === 'General' ? ' selected' : ''; ?>>General</option>
+                    <option value="Private"<?= $roomType === 'Private' ? ' selected' : ''; ?>>Private</option>
+                    <option value="Other"<?= $roomType === 'Other' ? ' selected' : ''; ?>>Other</option>
+                </select>
+            </div>
+            <div>
+                <label>Number of Beds<span class="required-mark">*</span></label>
+                <input class="form-input mt-2" name="rooms[<?= e((string) $index); ?>][bed_count]" type="number" min="1" step="1" value="<?= e($bedCount); ?>" data-bed-count required>
+            </div>
+        </div>
+    </div>
+    <?php
+
+    return (string) ob_get_clean();
+}
+
 function render_ward_modal_form(): string
 {
     ob_start();
@@ -156,19 +199,38 @@ function render_ward_modal_form(): string
                     <div><label for="ward_code">Ward Code</label><input class="form-input mt-2" id="ward_code" name="code" type="text" placeholder="Auto-generated if left empty"></div>
                     <div><label for="ward_type">Ward Type<span class="required-mark">*</span></label><select class="form-input mt-2" id="ward_type" name="ward_type" required><option value="">Select ward type</option><option value="Children">Children</option><option value="Men">Men</option><option value="Maternity">Maternity</option><option value="Women">Women</option><option value="ICU">ICU</option><option value="General">General</option><option value="Surgical">Surgical</option><option value="Isolation">Isolation</option></select></div>
                     <div><label for="ward_gender_policy">Gender Policy<span class="required-mark">*</span></label><select class="form-input mt-2" id="ward_gender_policy" name="gender_policy" required><option value="">Select policy</option><option value="children">Children</option><option value="male">Male</option><option value="female">Female</option><option value="mixed">Mixed</option></select></div>
-                    <div><label for="ward_capacity">Capacity<span class="required-mark">*</span></label><input class="form-input mt-2" id="ward_capacity" name="capacity" type="number" min="1" step="1" placeholder="Number of beds" required></div>
+                    <div>
+                        <label for="ward_capacity">Capacity</label>
+                        <input class="form-input mt-2" id="ward_capacity" name="capacity" type="number" min="1" step="1" placeholder="Auto-calculated from beds" data-capacity-total readonly>
+                        <p class="helper-text mt-2">This updates automatically from the room bed counts below.</p>
+                    </div>
                     <div><label for="ward_status">Status<span class="required-mark">*</span></label><select class="form-input mt-2" id="ward_status" name="status" required><option value="active">Active</option><option value="inactive">Inactive</option></select></div>
                 </div>
+            </div>
+            <div>
+                <div class="flex items-center justify-between gap-3">
+                    <div>
+                        <h3 class="section-title">Rooms & Beds</h3>
+                        <p class="mt-2 text-sm text-hospital-secondary">Add each room once and set how many beds should be created inside it.</p>
+                    </div>
+                    <button class="btn btn-secondary" type="button" data-add-room>Add Room</button>
+                </div>
+                <div class="mt-4 space-y-4" data-room-list>
+                    <?= render_ward_room_fields(0); ?>
+                </div>
+                <template data-room-template>
+                    <?= render_ward_room_fields('__INDEX__'); ?>
+                </template>
             </div>
         </article>
         <article class="panel space-y-4">
             <div class="rounded-xl border border-hospital-borderSoft bg-white px-4 py-4">
                 <p class="text-sm font-bold text-hospital-ink">Suggested examples</p>
-                <p class="mt-2 text-sm leading-6 text-hospital-secondary">You can register wards like Children Ward, Men Ward, Maternity Ward, Women Ward, ICU, or any other care unit your hospital uses.</p>
+                <p class="mt-2 text-sm leading-6 text-hospital-secondary">You can register wards like Children Ward, Men Ward, Maternity Ward, Women Ward, ICU, or any other care unit your hospital uses, then create their rooms and bed capacity in one save.</p>
             </div>
             <div class="rounded-xl border border-hospital-borderSoft bg-white px-4 py-4">
                 <p class="text-sm font-bold text-hospital-ink">How this works</p>
-                <p class="mt-2 text-sm leading-6 text-hospital-secondary">Every ward saved here is written to the `wards` table and becomes available immediately when admitting patients or assigning beds and rooms.</p>
+                <p class="mt-2 text-sm leading-6 text-hospital-secondary">Saving this form writes to the `wards`, `rooms`, and `beds` tables together, so admission dropdowns and occupancy tracking update directly from the database.</p>
             </div>
             <div class="flex flex-wrap gap-3 pt-2"><button class="btn btn-primary" type="submit">Save Ward</button><button class="btn btn-secondary" type="reset">Reset Form</button></div>
         </article>
@@ -217,9 +279,9 @@ function render_inpatient_modal_form(array $patients, array $visits, array $ward
                 <div><label for="admission_patient_id">Patient<span class="required-mark">*</span></label><select class="form-input mt-2" id="admission_patient_id" name="patient_id" required><option value="">Select patient</option><?php foreach ($patients as $patient): ?><option value="<?= e((string) $patient['id']); ?>"><?= e((string) $patient['patient_number'] . ' - ' . clinical_form_patient_name($patient)); ?></option><?php endforeach; ?></select></div>
                 <div><label for="admission_visit_id">Linked Visit<span class="required-mark">*</span></label><select class="form-input mt-2" id="admission_visit_id" name="visit_id" required><option value="">Select visit</option><?php foreach ($visits as $visit): ?><option value="<?= e((string) $visit['id']); ?>"><?= e((string) $visit['visit_number'] . ' - ' . clinical_form_patient_name($visit)); ?></option><?php endforeach; ?></select></div>
                 <div><label for="admitted_by">Admitted By<span class="required-mark">*</span></label><select class="form-input mt-2" id="admitted_by" name="admitted_by" required><option value="">Select staff</option><?php foreach ($doctors as $doctor): ?><option value="<?= e((string) $doctor['id']); ?>"><?= e((string) clinical_form_doctor_name($doctor) . ' - ' . ($doctor['job_title'] ?? '')); ?></option><?php endforeach; ?></select></div>
-                <div><label for="ward_id">Ward<span class="required-mark">*</span></label><select class="form-input mt-2" id="ward_id" name="ward_id" data-ward-filter required><option value="">Select ward</option><?php foreach ($wards as $ward): ?><option value="<?= e((string) $ward['id']); ?>"><?= e((string) $ward['name']); ?></option><?php endforeach; ?></select></div>
-                <div><label for="room_id">Room<span class="required-mark">*</span></label><select class="form-input mt-2" id="room_id" name="room_id" data-room-filter required><option value="">Select room</option><?php foreach ($rooms as $room): ?><option value="<?= e((string) $room['id']); ?>" data-ward-id="<?= e((string) $room['ward_id']); ?>"><?= e((string) $room['room_number'] . ' - ' . $room['name']); ?></option><?php endforeach; ?></select></div>
-                <div><label for="bed_id">Bed<span class="required-mark">*</span></label><select class="form-input mt-2" id="bed_id" name="bed_id" data-bed-filter required><option value="">Select bed</option><?php foreach ($beds as $bed): ?><option value="<?= e((string) $bed['id']); ?>" data-room-id="<?= e((string) $bed['room_id']); ?>"><?= e((string) $bed['bed_number'] . ' - ' . ucfirst((string) $bed['status'])); ?></option><?php endforeach; ?></select></div>
+                <div><label for="ward_id">Ward<span class="required-mark">*</span></label><select class="form-input mt-2" id="ward_id" name="ward_id" data-ward-filter required><option value="">Select ward</option><?php foreach ($wards as $ward): ?><option value="<?= e((string) $ward['id']); ?>"><?= e((string) $ward['name'] . ' (' . (int) ($ward['available_beds'] ?? 0) . ' beds free)'); ?></option><?php endforeach; ?></select></div>
+                <div><label for="room_id">Room<span class="required-mark">*</span></label><select class="form-input mt-2" id="room_id" name="room_id" data-room-filter required><option value="">Select room</option><?php foreach ($rooms as $room): ?><option value="<?= e((string) $room['id']); ?>" data-ward-id="<?= e((string) $room['ward_id']); ?>"><?= e((string) trim(($room['room_number'] !== '' ? $room['room_number'] . ' - ' : '') . $room['name']) . ' [' . ($room['room_type'] ?? 'Other') . '] (' . (int) ($room['available_beds'] ?? 0) . ' beds free)'); ?></option><?php endforeach; ?></select></div>
+                <div><label for="bed_id">Bed<span class="required-mark">*</span></label><select class="form-input mt-2" id="bed_id" name="bed_id" data-bed-filter required><option value="">Select bed</option><?php foreach ($beds as $bed): ?><option value="<?= e((string) $bed['id']); ?>" data-room-id="<?= e((string) $bed['room_id']); ?>" data-ward-id="<?= e((string) $bed['ward_id']); ?>"><?= e((string) $bed['bed_number'] . ' - ' . ucfirst((string) $bed['status'])); ?></option><?php endforeach; ?></select></div>
                 <div><label for="admission_date">Admission Date & Time<span class="required-mark">*</span></label><input class="form-input mt-2" id="admission_date" name="admission_date" type="datetime-local" required></div>
             </div>
         </article>
@@ -227,6 +289,10 @@ function render_inpatient_modal_form(array $patients, array $visits, array $ward
             <div><label for="admission_status">Status<span class="required-mark">*</span></label><select class="form-input mt-2" id="admission_status" name="status" required><option value="active">Active</option><option value="discharged">Discharged</option><option value="cancelled">Cancelled</option></select></div>
             <div><label for="admission_reason">Reason<span class="required-mark">*</span></label><textarea class="form-input mt-2 min-h-[130px] py-3" id="admission_reason" name="reason" required></textarea></div>
             <div><label for="admission_notes">Notes</label><textarea class="form-input mt-2 min-h-[160px] py-3" id="admission_notes" name="notes"></textarea></div>
+            <div class="rounded-xl border border-hospital-borderSoft bg-white px-4 py-4">
+                <p class="text-sm font-bold text-hospital-ink">Live availability</p>
+                <p class="mt-2 text-sm leading-6 text-hospital-secondary">Only rooms with at least one free bed and beds marked available from the database are shown here.</p>
+            </div>
             <div class="flex flex-wrap gap-3 pt-2"><button class="btn btn-primary" type="submit">Admit Patient</button><button class="btn btn-secondary" type="reset">Reset Form</button></div>
         </article>
     </form>
@@ -415,7 +481,7 @@ function render_ward_bed_modal_form(array $admissions, array $wards, array $room
             <div class="grid gap-4 md:grid-cols-2">
                 <div class="md:col-span-2"><label for="bed_assignment_admission_id">Admission<span class="required-mark">*</span></label><select class="form-input mt-2" id="bed_assignment_admission_id" name="admission_id" required><option value="">Select admission</option><?php foreach ($admissions as $admission): ?><option value="<?= e((string) $admission['id']); ?>"><?= e((string) $admission['admission_number'] . ' - ' . clinical_form_patient_name($admission)); ?></option><?php endforeach; ?></select></div>
                 <div><label for="bed_assignment_ward_id">Ward<span class="required-mark">*</span></label><select class="form-input mt-2" id="bed_assignment_ward_id" name="ward_id" data-ward-filter required><option value="">Select ward</option><?php foreach ($wards as $ward): ?><option value="<?= e((string) $ward['id']); ?>"><?= e((string) $ward['name']); ?></option><?php endforeach; ?></select></div>
-                <div><label for="bed_assignment_room_id">Room<span class="required-mark">*</span></label><select class="form-input mt-2" id="bed_assignment_room_id" name="room_id" data-room-filter required><option value="">Select room</option><?php foreach ($rooms as $room): ?><option value="<?= e((string) $room['id']); ?>" data-ward-id="<?= e((string) $room['ward_id']); ?>"><?= e((string) $room['room_number'] . ' - ' . $room['name']); ?></option><?php endforeach; ?></select></div>
+                <div><label for="bed_assignment_room_id">Room<span class="required-mark">*</span></label><select class="form-input mt-2" id="bed_assignment_room_id" name="room_id" data-room-filter required><option value="">Select room</option><?php foreach ($rooms as $room): ?><option value="<?= e((string) $room['id']); ?>" data-ward-id="<?= e((string) $room['ward_id']); ?>"><?= e((string) trim(($room['room_number'] !== '' ? $room['room_number'] . ' - ' : '') . $room['name']) . ' [' . ($room['room_type'] ?? 'Other') . ']'); ?></option><?php endforeach; ?></select></div>
                 <div><label for="bed_assignment_bed_id">Bed<span class="required-mark">*</span></label><select class="form-input mt-2" id="bed_assignment_bed_id" name="bed_id" data-bed-filter required><option value="">Select bed</option><?php foreach ($beds as $bed): ?><option value="<?= e((string) $bed['id']); ?>" data-room-id="<?= e((string) $bed['room_id']); ?>"><?= e((string) $bed['bed_number'] . ' - ' . ucfirst((string) $bed['status'])); ?></option><?php endforeach; ?></select></div>
                 <div><label for="bed_assignment_date">Assignment Date & Time<span class="required-mark">*</span></label><input class="form-input mt-2" id="bed_assignment_date" name="assigned_at" type="datetime-local" required></div>
             </div>

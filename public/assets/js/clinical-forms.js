@@ -79,7 +79,8 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   document.querySelectorAll('[data-room-filter]').forEach((roomSelect) => {
-    const wardSelect = document.querySelector('[data-ward-filter]');
+    const scope = roomSelect.closest('form') ?? document;
+    const wardSelect = scope.querySelector('[data-ward-filter]');
 
     if (!wardSelect) {
       return;
@@ -107,7 +108,8 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   document.querySelectorAll('[data-bed-filter]').forEach((bedSelect) => {
-    const roomSelect = document.querySelector('[data-room-filter]');
+    const scope = bedSelect.closest('form') ?? document;
+    const roomSelect = scope.querySelector('[data-room-filter]');
 
     if (!roomSelect) {
       return;
@@ -132,6 +134,99 @@ document.addEventListener('DOMContentLoaded', () => {
 
     roomSelect.addEventListener('change', filterBeds);
     filterBeds();
+  });
+
+  document.querySelectorAll('form').forEach((form) => {
+    const roomList = form.querySelector('[data-room-list]');
+    const roomTemplate = form.querySelector('[data-room-template]');
+    const addRoomButton = form.querySelector('[data-add-room]');
+    const capacityInput = form.querySelector('[data-capacity-total]');
+
+    if (!roomList || !roomTemplate || !addRoomButton || !capacityInput) {
+      return;
+    }
+
+    let roomIndex = roomList.querySelectorAll('[data-ward-room-item]').length;
+
+    const updateCapacity = () => {
+      const totalBeds = Array.from(roomList.querySelectorAll('[data-bed-count]')).reduce((sum, input) => {
+        const value = Number.parseInt(input.value || '0', 10);
+        return sum + (Number.isFinite(value) ? value : 0);
+      }, 0);
+
+      capacityInput.value = totalBeds > 0 ? String(totalBeds) : '';
+    };
+
+    const updateRemoveButtons = () => {
+      const roomItems = roomList.querySelectorAll('[data-ward-room-item]');
+
+      roomItems.forEach((item, index) => {
+        const removeButton = item.querySelector('[data-remove-room]');
+
+        if (!removeButton) {
+          return;
+        }
+
+        removeButton.hidden = roomItems.length === 1 && index === 0;
+      });
+    };
+
+    addRoomButton.addEventListener('click', () => {
+      const html = roomTemplate.innerHTML.replaceAll('__INDEX__', String(roomIndex));
+      roomIndex += 1;
+      roomList.insertAdjacentHTML('beforeend', html);
+      updateRemoveButtons();
+      updateCapacity();
+    });
+
+    roomList.addEventListener('click', (event) => {
+      const target = event.target;
+
+      if (!(target instanceof Element)) {
+        return;
+      }
+
+      const removeButton = target.closest('[data-remove-room]');
+
+      if (!removeButton) {
+        return;
+      }
+
+      const roomItem = removeButton.closest('[data-ward-room-item]');
+
+      if (roomItem && roomList.querySelectorAll('[data-ward-room-item]').length > 1) {
+        roomItem.remove();
+      }
+
+      updateRemoveButtons();
+      updateCapacity();
+    });
+
+    roomList.addEventListener('input', (event) => {
+      const target = event.target;
+
+      if (target instanceof Element && target.matches('[data-bed-count]')) {
+        updateCapacity();
+      }
+    });
+
+    form.addEventListener('reset', () => {
+      window.setTimeout(() => {
+        const roomItems = roomList.querySelectorAll('[data-ward-room-item]');
+
+        roomItems.forEach((item, index) => {
+          if (index > 0) {
+            item.remove();
+          }
+        });
+
+        updateRemoveButtons();
+        updateCapacity();
+      }, 0);
+    });
+
+    updateRemoveButtons();
+    updateCapacity();
   });
 
   document.querySelectorAll('[data-conditional-target]').forEach((field) => {

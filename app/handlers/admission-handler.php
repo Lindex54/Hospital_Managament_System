@@ -82,49 +82,115 @@ function createAdmission(array $data): int
 
     $admissionDate = str_replace('T', ' ', (string) $data['admission_date']);
 
-    $statement = $pdo->prepare(
-        'INSERT INTO admissions (
-            patient_id,
-            visit_id,
-            ward_id,
-            room_id,
-            bed_id,
-            admitted_by,
-            admission_number,
-            admission_date,
-            reason,
-            status,
-            notes
-        ) VALUES (
-            :patient_id,
-            :visit_id,
-            :ward_id,
-            :room_id,
-            :bed_id,
-            :admitted_by,
-            :admission_number,
-            :admission_date,
-            :reason,
-            :status,
-            :notes
-        )'
-    );
+    $pdo->beginTransaction();
 
-    $statement->execute([
-        'patient_id' => (int) $data['patient_id'],
-        'visit_id' => (int) $data['visit_id'],
-        'ward_id' => (int) $data['ward_id'],
-        'room_id' => (int) $data['room_id'],
-        'bed_id' => (int) $data['bed_id'],
-        'admitted_by' => (int) $data['admitted_by'],
-        'admission_number' => generateAdmissionNumber(),
-        'admission_date' => $admissionDate,
-        'reason' => trim((string) $data['reason']),
-        'status' => $status,
-        'notes' => trim((string) ($data['notes'] ?? '')) !== '' ? trim((string) $data['notes']) : null,
-    ]);
+    try {
+        $resourceStatement = $pdo->prepare(
+            'SELECT rooms.id AS room_id,
+                    rooms.ward_id,
+                    rooms.status AS room_status,
+                    rooms.room_type,
+                    (
+                        SELECT COUNT(*)
+                        FROM beds occupied_beds
+                        WHERE occupied_beds.room_id = rooms.id
+                          AND occupied_beds.status = \'occupied\'
+                    ) AS occupied_beds,
+                    beds.id AS bed_id,
+                    beds.status AS bed_status
+             FROM beds
+             INNER JOIN rooms ON rooms.id = beds.room_id
+             WHERE beds.id = :bed_id
+               AND rooms.id = :room_id
+             LIMIT 1'
+        );
+        $resourceStatement->execute([
+            'bed_id' => (int) $data['bed_id'],
+            'room_id' => (int) $data['room_id'],
+        ]);
+        $resource = $resourceStatement->fetch(PDO::FETCH_ASSOC);
 
-    return (int) $pdo->lastInsertId();
+        if (!is_array($resource)) {
+            throw new RuntimeException('Selected room and bed do not match.');
+        }
+
+        if ((int) ($resource['ward_id'] ?? 0) !== (int) $data['ward_id']) {
+            throw new RuntimeException('Selected room does not belong to the chosen ward.');
+        }
+
+        if ((string) ($resource['room_status'] ?? '') !== 'active') {
+            throw new RuntimeException('Selected room is not currently available.');
+        }
+
+        if (strtolower((string) ($resource['room_type'] ?? '')) === 'private' && (int) ($resource['occupied_beds'] ?? 0) > 0) {
+            throw new RuntimeException('Selected private room is already occupied and cannot be assigned again.');
+        }
+
+        if ((string) ($resource['bed_status'] ?? '') !== 'available') {
+            throw new RuntimeException('Selected bed is no longer available.');
+        }
+
+        $statement = $pdo->prepare(
+            'INSERT INTO admissions (
+                patient_id,
+                visit_id,
+                ward_id,
+                room_id,
+                bed_id,
+                admitted_by,
+                admission_number,
+                admission_date,
+                reason,
+                status,
+                notes
+            ) VALUES (
+                :patient_id,
+                :visit_id,
+                :ward_id,
+                :room_id,
+                :bed_id,
+                :admitted_by,
+                :admission_number,
+                :admission_date,
+                :reason,
+                :status,
+                :notes
+            )'
+        );
+
+        $statement->execute([
+            'patient_id' => (int) $data['patient_id'],
+            'visit_id' => (int) $data['visit_id'],
+            'ward_id' => (int) $data['ward_id'],
+            'room_id' => (int) $data['room_id'],
+            'bed_id' => (int) $data['bed_id'],
+            'admitted_by' => (int) $data['admitted_by'],
+            'admission_number' => generateAdmissionNumber(),
+            'admission_date' => $admissionDate,
+            'reason' => trim((string) $data['reason']),
+            'status' => $status,
+            'notes' => trim((string) ($data['notes'] ?? '')) !== '' ? trim((string) $data['notes']) : null,
+        ]);
+
+        $admissionId = (int) $pdo->lastInsertId();
+
+        $bedUpdate = $pdo->prepare(
+            'UPDATE beds
+             SET status = :status
+             WHERE id = :bed_id'
+        );
+        $bedUpdate->execute([
+            'status' => $status === 'active' ? 'occupied' : 'reserved',
+            'bed_id' => (int) $data['bed_id'],
+        ]);
+
+        $pdo->commit();
+
+        return $admissionId;
+    } catch (Throwable $exception) {
+        $pdo->rollBack();
+        throw $exception;
+    }
 }
 
 function handle_inpatient_admission_submission(): void

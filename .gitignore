@@ -1,4 +1,5 @@
 node_modules/
+tools/
 public/assets/css/output.css
 storage/logs/*.log
 storage/backups/*
@@ -12,4 +13,3 @@ uploads/documents/*
 !uploads/documents/.gitkeep
 !storage/logs/.gitkeep
 !storage/backups/.gitkeep
-

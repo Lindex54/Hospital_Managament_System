@@ -61,58 +61,173 @@ function generateWardCode(string $name): string
     }
 }
 
+function normalizeWardRooms(array $rooms): array
+{
+    $normalized = [];
+
+    foreach ($rooms as $room) {
+        if (!is_array($room)) {
+            continue;
+        }
+
+        $roomNumber = trim((string) ($room['room_number'] ?? ''));
+        $roomName = trim((string) ($room['name'] ?? ''));
+        $roomType = trim((string) ($room['room_type'] ?? ''));
+        $bedCount = (int) ($room['bed_count'] ?? 0);
+        $normalizedRoomType = strtolower($roomType);
+
+        if ($roomNumber === '' && $roomName === '' && $bedCount === 0) {
+            continue;
+        }
+
+        if ($normalizedRoomType === '' || !in_array($normalizedRoomType, ['general', 'private', 'other'], true)) {
+            throw new RuntimeException('Choose a valid room type for each room entry.');
+        }
+
+        if ($bedCount <= 0) {
+            throw new RuntimeException('Each room must have at least one bed.');
+        }
+
+        $normalized[] = [
+            'name' => $roomName !== '' ? $roomName : 'Room',
+            'room_number' => $roomNumber,
+            'room_type' => ucfirst($normalizedRoomType),
+            'bed_count' => $bedCount,
+        ];
+    }
+
+    if ($normalized === []) {
+        throw new RuntimeException('Add at least one room before saving the ward.');
+    }
+
+    return $normalized;
+}
+
 function createWardRecord(array $data): int
 {
-    $errors = validate_required($data, ['name', 'ward_type', 'gender_policy', 'capacity', 'status']);
+    $errors = validate_required($data, ['name', 'ward_type', 'gender_policy', 'status']);
     if ($errors !== []) {
         throw new RuntimeException((string) reset($errors));
     }
 
-    $capacity = (int) $data['capacity'];
-    if ($capacity <= 0) {
-        throw new RuntimeException('Capacity must be greater than zero.');
-    }
-
+    $rooms = normalizeWardRooms($data['rooms'] ?? []);
+    $capacity = array_sum(array_map(
+        static fn (array $room): int => (int) $room['bed_count'],
+        $rooms
+    ));
     $pdo = database_connection();
-    $statement = $pdo->prepare(
-        'INSERT INTO wards (
-            name,
-            code,
-            ward_type,
-            gender_policy,
-            capacity,
-            status
-        ) VALUES (
-            :name,
-            :code,
-            :ward_type,
-            :gender_policy,
-            :capacity,
-            :status
-        )'
-    );
-
     $name = trim((string) $data['name']);
     $code = trim((string) ($data['code'] ?? ''));
+    $status = trim((string) $data['status']);
+
+    $pdo->beginTransaction();
 
     try {
+        $statement = $pdo->prepare(
+            'INSERT INTO wards (
+                name,
+                code,
+                ward_type,
+                gender_policy,
+                capacity,
+                status
+            ) VALUES (
+                :name,
+                :code,
+                :ward_type,
+                :gender_policy,
+                :capacity,
+                :status
+            )'
+        );
         $statement->execute([
             'name' => $name,
             'code' => $code !== '' ? strtoupper($code) : generateWardCode($name),
             'ward_type' => trim((string) $data['ward_type']),
             'gender_policy' => trim((string) $data['gender_policy']),
             'capacity' => $capacity,
-            'status' => trim((string) $data['status']),
+            'status' => $status,
         ]);
+
+        $wardId = (int) $pdo->lastInsertId();
+
+        $roomStatement = $pdo->prepare(
+            'INSERT INTO rooms (
+                ward_id,
+                name,
+                room_number,
+                room_type,
+                status
+            ) VALUES (
+                :ward_id,
+                :name,
+                :room_number,
+                :room_type,
+                :status
+            )'
+        );
+        $bedStatement = $pdo->prepare(
+            'INSERT INTO beds (
+                room_id,
+                bed_number,
+                bed_type,
+                status
+            ) VALUES (
+                :room_id,
+                :bed_number,
+                :bed_type,
+                :status
+            )'
+        );
+
+        $roomSequence = 0;
+
+        foreach ($rooms as $room) {
+            $roomSequence++;
+            $roomNumber = trim((string) $room['room_number']);
+            if ($roomNumber === '') {
+                $roomNumber = sprintf('R%02d', $roomSequence);
+            }
+
+            $roomName = trim((string) $room['name']);
+            if ($roomName === '') {
+                $roomName = 'Room ' . $roomNumber;
+            }
+
+            $roomStatement->execute([
+                'ward_id' => $wardId,
+                'name' => $roomName,
+                'room_number' => $roomNumber,
+                'room_type' => $room['room_type'],
+                'status' => $status === 'inactive' ? 'inactive' : 'active',
+            ]);
+
+            $roomId = (int) $pdo->lastInsertId();
+            for ($index = 1; $index <= (int) $room['bed_count']; $index++) {
+                $bedStatement->execute([
+                    'room_id' => $roomId,
+                    'bed_number' => 'Bed ' . $index,
+                    'bed_type' => $room['room_type'],
+                    'status' => $status === 'inactive' ? 'maintenance' : 'available',
+                ]);
+            }
+        }
+
+        $pdo->commit();
+
+        return $wardId;
     } catch (PDOException $exception) {
+        $pdo->rollBack();
+
         if ($exception->getCode() === '23000') {
-            throw new RuntimeException('Ward name or code already exists. Please use a unique ward name/code.');
+            throw new RuntimeException('Ward name, ward code, or room number already exists. Please use unique values.');
         }
 
         throw $exception;
+    } catch (Throwable $exception) {
+        $pdo->rollBack();
+        throw $exception;
     }
-
-    return (int) $pdo->lastInsertId();
 }
 
 function assignAdmissionBed(array $data): int
@@ -139,21 +254,46 @@ function assignAdmissionBed(array $data): int
             throw new RuntimeException('Admission record not found.');
         }
 
-        $bedStatement = $pdo->prepare(
-            'SELECT status
+        $resourceStatement = $pdo->prepare(
+            'SELECT rooms.id AS room_id,
+                    rooms.ward_id,
+                    rooms.status AS room_status,
+                    rooms.room_type,
+                    (
+                        SELECT COUNT(*)
+                        FROM beds occupied_beds
+                        WHERE occupied_beds.room_id = rooms.id
+                          AND occupied_beds.status = \'occupied\'
+                    ) AS occupied_beds,
+                    beds.id AS bed_id,
+                    beds.status AS bed_status
              FROM beds
-             WHERE id = :id
+             INNER JOIN rooms ON rooms.id = beds.room_id
+             WHERE beds.id = :bed_id
+               AND rooms.id = :room_id
              LIMIT 1'
         );
-        $bedStatement->execute(['id' => (int) $data['bed_id']]);
-        $bedStatus = (string) $bedStatement->fetchColumn();
+        $resourceStatement->execute([
+            'bed_id' => (int) $data['bed_id'],
+            'room_id' => (int) $data['room_id'],
+        ]);
+        $resource = $resourceStatement->fetch(PDO::FETCH_ASSOC);
 
-        if ($bedStatus === '') {
-            throw new RuntimeException('Selected bed was not found.');
+        if (!is_array($resource)) {
+            throw new RuntimeException('Selected room and bed do not match.');
+        }
+
+        if ((int) ($resource['ward_id'] ?? 0) !== (int) $data['ward_id']) {
+            throw new RuntimeException('Selected room does not belong to the chosen ward.');
+        }
+
+        if (strtolower((string) ($resource['room_type'] ?? '')) === 'private' && (int) ($resource['occupied_beds'] ?? 0) > 0) {
+            throw new RuntimeException('Selected private room is already occupied and cannot be assigned again.');
         }
 
         $currentBedId = isset($admission['bed_id']) ? (int) $admission['bed_id'] : 0;
         $newBedId = (int) $data['bed_id'];
+        $bedStatus = (string) ($resource['bed_status'] ?? '');
 
         if ($bedStatus !== 'available' && $currentBedId !== $newBedId) {
             throw new RuntimeException('Selected bed is not currently available.');

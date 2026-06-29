@@ -130,37 +130,116 @@ function clinical_form_fetch_admissions(int $limit = 100): array
     return $statement->fetchAll(PDO::FETCH_ASSOC);
 }
 
-function clinical_form_fetch_wards(): array
+function clinical_form_fetch_wards(bool $onlyAvailableForAdmission = false): array
 {
-    $statement = clinical_forms_pdo()->query(
-        "SELECT id, name, code, ward_type
-         FROM wards
-         WHERE status = 'active'
-         ORDER BY name ASC"
-    );
+    $sql = "SELECT wards.id,
+                   wards.name,
+                   wards.code,
+                   wards.ward_type,
+                   COALESCE(SUM(
+                       CASE
+                           WHEN room_stats.is_admission_available = 1 THEN room_stats.available_beds
+                           ELSE 0
+                       END
+                   ), 0) AS available_beds
+            FROM wards
+            LEFT JOIN (
+                SELECT rooms.id,
+                       rooms.ward_id,
+                       LOWER(COALESCE(rooms.room_type, 'other')) AS room_type,
+                       COALESCE(SUM(CASE WHEN beds.status = 'available' THEN 1 ELSE 0 END), 0) AS available_beds,
+                       COALESCE(SUM(CASE WHEN beds.status = 'occupied' THEN 1 ELSE 0 END), 0) AS occupied_beds,
+                       CASE
+                           WHEN LOWER(COALESCE(rooms.room_type, 'other')) = 'private'
+                               THEN CASE
+                                   WHEN COALESCE(SUM(CASE WHEN beds.status = 'occupied' THEN 1 ELSE 0 END), 0) = 0
+                                        AND COALESCE(SUM(CASE WHEN beds.status = 'available' THEN 1 ELSE 0 END), 0) > 0
+                                       THEN 1
+                                   ELSE 0
+                               END
+                           ELSE CASE
+                               WHEN COALESCE(SUM(CASE WHEN beds.status = 'available' THEN 1 ELSE 0 END), 0) > 0
+                                   THEN 1
+                               ELSE 0
+                           END
+                       END AS is_admission_available
+                FROM rooms
+                LEFT JOIN beds ON beds.room_id = rooms.id
+                WHERE rooms.status = 'active'
+                GROUP BY rooms.id, rooms.ward_id, rooms.room_type
+            ) AS room_stats ON room_stats.ward_id = wards.id
+            WHERE wards.status = 'active'
+            GROUP BY wards.id, wards.name, wards.code, wards.ward_type";
+
+    if ($onlyAvailableForAdmission) {
+        $sql .= '
+            HAVING COALESCE(SUM(room_stats.is_admission_available), 0) > 0';
+    }
+
+    $sql .= '
+            ORDER BY wards.name ASC';
+
+    $statement = clinical_forms_pdo()->query($sql);
 
     return $statement->fetchAll(PDO::FETCH_ASSOC);
 }
 
-function clinical_form_fetch_rooms(): array
+function clinical_form_fetch_rooms(bool $onlyAvailableForAdmission = false): array
 {
-    $statement = clinical_forms_pdo()->query(
-        "SELECT rooms.id, rooms.ward_id, rooms.name, rooms.room_number, rooms.room_type
-         FROM rooms
-         WHERE rooms.status = 'active'
-         ORDER BY rooms.room_number ASC, rooms.name ASC"
-    );
+    $sql = "SELECT rooms.id,
+                   rooms.ward_id,
+                   rooms.name,
+                   rooms.room_number,
+                   rooms.room_type,
+                   rooms.status,
+                   COALESCE(SUM(CASE WHEN beds.status = 'available' THEN 1 ELSE 0 END), 0) AS available_beds,
+                   COALESCE(SUM(CASE WHEN beds.status = 'occupied' THEN 1 ELSE 0 END), 0) AS occupied_beds
+            FROM rooms
+            LEFT JOIN beds ON beds.room_id = rooms.id
+            WHERE rooms.status = 'active'
+            GROUP BY rooms.id, rooms.ward_id, rooms.name, rooms.room_number, rooms.room_type, rooms.status";
+
+    if ($onlyAvailableForAdmission) {
+        $sql .= "
+            HAVING (
+                LOWER(COALESCE(rooms.room_type, 'other')) = 'private'
+                AND COALESCE(SUM(CASE WHEN beds.status = 'occupied' THEN 1 ELSE 0 END), 0) = 0
+                AND COALESCE(SUM(CASE WHEN beds.status = 'available' THEN 1 ELSE 0 END), 0) > 0
+            ) OR (
+                LOWER(COALESCE(rooms.room_type, 'other')) <> 'private'
+                AND COALESCE(SUM(CASE WHEN beds.status = 'available' THEN 1 ELSE 0 END), 0) > 0
+            )";
+    }
+
+    $sql .= '
+            ORDER BY rooms.room_number ASC, rooms.name ASC';
+
+    $statement = clinical_forms_pdo()->query($sql);
 
     return $statement->fetchAll(PDO::FETCH_ASSOC);
 }
 
-function clinical_form_fetch_beds(): array
+function clinical_form_fetch_beds(bool $onlyAvailableForAdmission = false): array
 {
-    $statement = clinical_forms_pdo()->query(
-        "SELECT beds.id, beds.room_id, beds.bed_number, beds.bed_type, beds.status
-         FROM beds
-         ORDER BY beds.bed_number ASC"
-    );
+    $sql = "SELECT beds.id,
+                   beds.room_id,
+                   rooms.ward_id,
+                   beds.bed_number,
+                   beds.bed_type,
+                   beds.status
+            FROM beds
+            INNER JOIN rooms ON rooms.id = beds.room_id";
+
+    if ($onlyAvailableForAdmission) {
+        $sql .= "
+            WHERE beds.status = 'available'
+              AND rooms.status = 'active'";
+    }
+
+    $sql .= '
+            ORDER BY beds.bed_number ASC';
+
+    $statement = clinical_forms_pdo()->query($sql);
 
     return $statement->fetchAll(PDO::FETCH_ASSOC);
 }
