@@ -35,6 +35,7 @@ function hospital_module_page_data(string $key, array $page, ?int $limit = 50): 
     return match ($key) {
         'patients' => hospital_module_patients_page_data($page, $limit),
         'doctors' => hospital_module_doctors_page_data($page, $limit),
+        'wards' => hospital_module_wards_page_data($page, $limit),
         'outpatient' => hospital_module_outpatient_page_data($page, $limit),
         'inpatient' => hospital_module_inpatient_page_data($page, $limit),
         'appointments' => hospital_module_appointments_page_data($page, $limit),
@@ -352,6 +353,42 @@ function hospital_module_doctors_page_data(array $page, ?int $limit = 50): array
     $page['stats'] = $stats;
     $page['rows'] = $rows;
     $page['empty_message'] = 'No doctor records found yet. Add a doctor to start populating assignment dropdowns.';
+
+    return $page;
+}
+
+function hospital_module_wards_page_data(array $page, ?int $limit = 50): array
+{
+    $pdo = database_connection();
+    $stats = [
+        ['Registered Wards', hospital_module_format_count((int) hospital_module_count('SELECT COUNT(*) FROM wards'))],
+        ['Active Wards', hospital_module_format_count((int) hospital_module_count("SELECT COUNT(*) FROM wards WHERE status = 'active'"))],
+        ['Total Capacity', hospital_module_format_count((int) hospital_module_count('SELECT COALESCE(SUM(capacity), 0) FROM wards'))],
+        ['Mixed / Special Units', hospital_module_format_count((int) hospital_module_count("SELECT COUNT(*) FROM wards WHERE gender_policy IN ('mixed', 'children')"))],
+    ];
+
+    $statement = $pdo->query(hospital_module_apply_limit(
+        "SELECT code, name, ward_type, gender_policy, status, capacity
+         FROM wards
+         ORDER BY created_at DESC, id DESC",
+        $limit
+    ));
+
+    $rows = [];
+    foreach ($statement->fetchAll(PDO::FETCH_ASSOC) as $ward) {
+        $rows[] = [
+            (string) ($ward['code'] ?? '-'),
+            (string) ($ward['name'] ?? '-'),
+            trim((string) ($ward['ward_type'] ?? '')) !== '' ? (string) $ward['ward_type'] : 'General',
+            ucfirst((string) ($ward['gender_policy'] ?? 'mixed')),
+            ucfirst((string) ($ward['status'] ?? '-')),
+            (string) ($ward['capacity'] ?? '0'),
+        ];
+    }
+
+    $page['stats'] = $stats;
+    $page['rows'] = $rows;
+    $page['empty_message'] = 'No ward records found yet. Add a ward to start assigning admissions properly.';
 
     return $page;
 }
@@ -942,8 +979,15 @@ function hospital_module_modal_config(string $key): ?array
             'title' => 'Add Doctor',
             'subtitle' => 'Doctor fields saved into the `staff` table for live assignment dropdowns.',
             'content' => static fn (): string => render_doctor_modal_form(
-                clinical_form_fetch_departments()
+                clinical_form_fetch_doctor_departments()
             ),
+        ],
+        'wards' => [
+            'action_label' => 'Add Ward',
+            'modal_id' => 'ward-registration',
+            'title' => 'Add Ward',
+            'subtitle' => 'Ward fields saved into the `wards` table for live admission and bed assignment dropdowns.',
+            'content' => static fn (): string => render_ward_modal_form(),
         ],
         'outpatient' => [
             'action_label' => 'Create OPD Visit',

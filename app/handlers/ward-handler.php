@@ -30,6 +30,91 @@ function ward_get_flash(): ?array
     return $flash;
 }
 
+function generateWardCode(string $name): string
+{
+    $normalized = strtoupper((string) preg_replace('/[^A-Za-z0-9]+/', '-', trim($name)));
+    $normalized = trim($normalized, '-');
+
+    if ($normalized === '') {
+        $normalized = 'WARD';
+    }
+
+    $baseCode = substr($normalized, 0, 24);
+    $pdo = database_connection();
+    $candidate = $baseCode;
+    $suffix = 1;
+
+    while (true) {
+        $statement = $pdo->prepare(
+            'SELECT COUNT(*)
+             FROM wards
+             WHERE code = :code'
+        );
+        $statement->execute(['code' => $candidate]);
+
+        if ((int) $statement->fetchColumn() === 0) {
+            return $candidate;
+        }
+
+        $candidate = substr($baseCode, 0, max(1, 24 - strlen((string) $suffix) - 1)) . '-' . $suffix;
+        $suffix++;
+    }
+}
+
+function createWardRecord(array $data): int
+{
+    $errors = validate_required($data, ['name', 'ward_type', 'gender_policy', 'capacity', 'status']);
+    if ($errors !== []) {
+        throw new RuntimeException((string) reset($errors));
+    }
+
+    $capacity = (int) $data['capacity'];
+    if ($capacity <= 0) {
+        throw new RuntimeException('Capacity must be greater than zero.');
+    }
+
+    $pdo = database_connection();
+    $statement = $pdo->prepare(
+        'INSERT INTO wards (
+            name,
+            code,
+            ward_type,
+            gender_policy,
+            capacity,
+            status
+        ) VALUES (
+            :name,
+            :code,
+            :ward_type,
+            :gender_policy,
+            :capacity,
+            :status
+        )'
+    );
+
+    $name = trim((string) $data['name']);
+    $code = trim((string) ($data['code'] ?? ''));
+
+    try {
+        $statement->execute([
+            'name' => $name,
+            'code' => $code !== '' ? strtoupper($code) : generateWardCode($name),
+            'ward_type' => trim((string) $data['ward_type']),
+            'gender_policy' => trim((string) $data['gender_policy']),
+            'capacity' => $capacity,
+            'status' => trim((string) $data['status']),
+        ]);
+    } catch (PDOException $exception) {
+        if ($exception->getCode() === '23000') {
+            throw new RuntimeException('Ward name or code already exists. Please use a unique ward name/code.');
+        }
+
+        throw $exception;
+    }
+
+    return (int) $pdo->lastInsertId();
+}
+
 function assignAdmissionBed(array $data): int
 {
     $errors = validate_required($data, ['admission_id', 'ward_id', 'room_id', 'bed_id', 'assigned_at']);
@@ -154,22 +239,31 @@ function handle_ward_submission(): void
         return;
     }
 
-    if (($GLOBALS['currentPage'] ?? '') !== 'ward-beds') {
+    $currentPage = (string) ($GLOBALS['currentPage'] ?? '');
+
+    if (!in_array($currentPage, ['wards', 'ward-beds'], true)) {
         return;
     }
 
-    if (($_POST['form_action'] ?? '') !== 'assign_bed') {
+    $formAction = (string) ($_POST['form_action'] ?? '');
+
+    if (!in_array($formAction, ['create_ward', 'assign_bed'], true)) {
         return;
     }
 
     requirePermission('wards.view');
 
     try {
-        $transferId = assignAdmissionBed($_POST);
-        ward_flash('success', 'Bed assignment saved successfully. Transfer record ID: ' . $transferId . '.');
+        if ($formAction === 'create_ward') {
+            $wardId = createWardRecord($_POST);
+            ward_flash('success', 'Ward added successfully. Record ID: ' . $wardId . '.');
+        } else {
+            $transferId = assignAdmissionBed($_POST);
+            ward_flash('success', 'Bed assignment saved successfully. Transfer record ID: ' . $transferId . '.');
+        }
     } catch (Throwable $exception) {
         ward_flash('error', $exception->getMessage());
     }
 
-    redirect(base_url('index.php?page=ward-beds'));
+    redirect(base_url('index.php?page=' . $currentPage));
 }

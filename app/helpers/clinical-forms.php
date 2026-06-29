@@ -22,6 +22,19 @@ function clinical_form_fetch_departments(): array
     return $statement->fetchAll(PDO::FETCH_ASSOC);
 }
 
+function clinical_form_fetch_doctor_departments(): array
+{
+    $statement = clinical_forms_pdo()->query(
+        "SELECT id, name, code
+         FROM departments
+         WHERE status = 'active'
+           AND LOWER(name) IN ('outpatient', 'inpatient', 'laboratory')
+         ORDER BY FIELD(LOWER(name), 'outpatient', 'inpatient', 'laboratory')"
+    );
+
+    return $statement->fetchAll(PDO::FETCH_ASSOC);
+}
+
 function clinical_form_fetch_patients(int $limit = 100): array
 {
     $statement = clinical_forms_pdo()->prepare(

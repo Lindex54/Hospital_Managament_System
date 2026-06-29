@@ -49,6 +49,17 @@ function createEmergencyVisit(array $data): int
 
     $pdo = database_connection();
     $currentUser = getCurrentUser();
+    $createdBy = null;
+
+    if (
+        is_array($currentUser)
+        && (($currentUser['is_demo_user'] ?? false) !== true)
+        && isset($currentUser['id'])
+        && (int) $currentUser['id'] > 0
+    ) {
+        $createdBy = (int) $currentUser['id'];
+    }
+
     $statusMap = [
         'open' => 'registered',
         'stabilized' => 'consulting',
@@ -106,7 +117,7 @@ function createEmergencyVisit(array $data): int
         'visit_date' => $arrivalTime,
         'chief_complaint' => trim((string) $data['presenting_complaint']),
         'notes' => implode(PHP_EOL, $extraNotes),
-        'created_by' => isset($currentUser['id']) ? (int) $currentUser['id'] : null,
+        'created_by' => $createdBy,
     ]);
 
     return (int) $pdo->lastInsertId();

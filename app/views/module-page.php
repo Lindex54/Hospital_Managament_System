@@ -33,6 +33,10 @@ if ($currentPage === 'doctors') {
     $pageFlash = doctor_get_flash();
 }
 
+if ($currentPage === 'wards') {
+    $pageFlash = ward_get_flash();
+}
+
 if ($currentPage === 'inpatient') {
     $pageFlash = admission_get_flash();
 }

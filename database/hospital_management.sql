@@ -752,6 +752,14 @@ INSERT INTO departments (name, code, description) VALUES
 ('Billing', 'BILL', 'Billing and finance'),
 ('Nursing', 'NURS', 'Nursing services');
 
+INSERT INTO wards (name, code, ward_type, gender_policy, capacity, status) VALUES
+('St. Luke Ward', 'ST-LUKE', 'General', 'male', 24, 'active'),
+('St. Joseph Ward', 'ST-JOSEPH', 'Surgical', 'male', 20, 'active'),
+('St. Mary Ward', 'ST-MARY', 'General', 'female', 24, 'active'),
+('St. Theresa Ward', 'ST-THERESA', 'General', 'female', 20, 'active'),
+('St. Anne Maternity Ward', 'ST-ANNE', 'Maternity', 'female', 18, 'active'),
+('St. Clare Ward', 'ST-CLARE', 'Medical', 'female', 16, 'active');
+
 INSERT INTO medicine_categories (name, description) VALUES
 ('Antibiotics', 'Antibacterial medicines'),
 ('Painkillers', 'Analgesic medicines'),

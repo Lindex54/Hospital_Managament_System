@@ -37,6 +37,11 @@ if ($currentPage === 'doctors') {
     handle_doctor_submission();
 }
 
+if ($currentPage === 'wards') {
+    require_once dirname(__DIR__) . '/app/handlers/ward-handler.php';
+    handle_ward_submission();
+}
+
 if ($currentPage === 'inpatient') {
     require_once dirname(__DIR__) . '/app/handlers/admission-handler.php';
     handle_inpatient_admission_submission();

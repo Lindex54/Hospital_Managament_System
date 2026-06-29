@@ -78,6 +78,17 @@ function createOutpatientVisit(array $data): int
 
     $pdo = database_connection();
     $currentUser = getCurrentUser();
+    $createdBy = null;
+
+    if (
+        is_array($currentUser)
+        && (($currentUser['is_demo_user'] ?? false) !== true)
+        && isset($currentUser['id'])
+        && (int) $currentUser['id'] > 0
+    ) {
+        $createdBy = (int) $currentUser['id'];
+    }
+
     $visitType = (string) ($data['visit_type'] ?? 'outpatient');
     $visitStatus = (string) ($data['visit_status'] ?? 'registered');
     $allowedVisitTypes = ['outpatient', 'inpatient', 'emergency', 'follow_up'];
@@ -132,7 +143,7 @@ function createOutpatientVisit(array $data): int
         'visit_date' => $visitDate,
         'chief_complaint' => trim((string) $data['chief_complaint']),
         'notes' => trim((string) ($data['notes'] ?? '')) !== '' ? trim((string) $data['notes']) : null,
-        'created_by' => isset($currentUser['id']) ? (int) $currentUser['id'] : null,
+        'created_by' => $createdBy,
     ]);
 
     return (int) $pdo->lastInsertId();

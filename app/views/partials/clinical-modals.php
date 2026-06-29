@@ -142,6 +142,42 @@ function render_doctor_modal_form(array $departments): string
     return (string) ob_get_clean();
 }
 
+function render_ward_modal_form(): string
+{
+    ob_start();
+    ?>
+    <form class="grid gap-6 xl:grid-cols-[1.05fr_0.95fr]" method="post">
+        <input type="hidden" name="form_action" value="create_ward">
+        <article class="panel space-y-6">
+            <div>
+                <h3 class="section-title">Ward Profile</h3>
+                <div class="mt-4 grid gap-4 md:grid-cols-2">
+                    <div><label for="ward_name">Ward Name<span class="required-mark">*</span></label><input class="form-input mt-2" id="ward_name" name="name" type="text" placeholder="e.g. Children Ward, Men Ward" required></div>
+                    <div><label for="ward_code">Ward Code</label><input class="form-input mt-2" id="ward_code" name="code" type="text" placeholder="Auto-generated if left empty"></div>
+                    <div><label for="ward_type">Ward Type<span class="required-mark">*</span></label><select class="form-input mt-2" id="ward_type" name="ward_type" required><option value="">Select ward type</option><option value="Children">Children</option><option value="Men">Men</option><option value="Maternity">Maternity</option><option value="Women">Women</option><option value="ICU">ICU</option><option value="General">General</option><option value="Surgical">Surgical</option><option value="Isolation">Isolation</option></select></div>
+                    <div><label for="ward_gender_policy">Gender Policy<span class="required-mark">*</span></label><select class="form-input mt-2" id="ward_gender_policy" name="gender_policy" required><option value="">Select policy</option><option value="children">Children</option><option value="male">Male</option><option value="female">Female</option><option value="mixed">Mixed</option></select></div>
+                    <div><label for="ward_capacity">Capacity<span class="required-mark">*</span></label><input class="form-input mt-2" id="ward_capacity" name="capacity" type="number" min="1" step="1" placeholder="Number of beds" required></div>
+                    <div><label for="ward_status">Status<span class="required-mark">*</span></label><select class="form-input mt-2" id="ward_status" name="status" required><option value="active">Active</option><option value="inactive">Inactive</option></select></div>
+                </div>
+            </div>
+        </article>
+        <article class="panel space-y-4">
+            <div class="rounded-xl border border-hospital-borderSoft bg-white px-4 py-4">
+                <p class="text-sm font-bold text-hospital-ink">Suggested examples</p>
+                <p class="mt-2 text-sm leading-6 text-hospital-secondary">You can register wards like Children Ward, Men Ward, Maternity Ward, Women Ward, ICU, or any other care unit your hospital uses.</p>
+            </div>
+            <div class="rounded-xl border border-hospital-borderSoft bg-white px-4 py-4">
+                <p class="text-sm font-bold text-hospital-ink">How this works</p>
+                <p class="mt-2 text-sm leading-6 text-hospital-secondary">Every ward saved here is written to the `wards` table and becomes available immediately when admitting patients or assigning beds and rooms.</p>
+            </div>
+            <div class="flex flex-wrap gap-3 pt-2"><button class="btn btn-primary" type="submit">Save Ward</button><button class="btn btn-secondary" type="reset">Reset Form</button></div>
+        </article>
+    </form>
+    <?php
+
+    return (string) ob_get_clean();
+}
+
 function render_outpatient_modal_form(array $patients, array $departments, array $doctors, array $appointments): string
 {
     ob_start();

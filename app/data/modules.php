@@ -49,6 +49,20 @@ return [
         'columns' => ['Doctor Code', 'Name', 'Role', 'Department', 'Status', 'Joined'],
         'rows' => [],
     ],
+    'wards' => [
+        'title' => 'Wards',
+        'description' => 'Create and manage inpatient wards such as children, men, maternity, and women wards for live admission assignment.',
+        'icon' => 'ward-beds',
+        'actions' => ['Add Ward', 'Capacity Summary', 'Ward Register'],
+        'stats' => [
+            ['Registered Wards', '0'],
+            ['Active Wards', '0'],
+            ['Total Capacity', '0'],
+            ['Mixed / Special Units', '0'],
+        ],
+        'columns' => ['Ward Code', 'Name', 'Type', 'Gender Policy', 'Status', 'Capacity'],
+        'rows' => [],
+    ],
     'outpatient' => [
         'title' => 'Outpatient',
         'description' => 'Track OPD visits from reception and triage through consultation, billing, and follow-up.',
