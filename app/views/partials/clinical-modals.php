@@ -309,10 +309,31 @@ function render_appointment_modal_form(array $patients, array $departments, arra
         <input type="hidden" name="form_action" value="create_appointment">
         <article class="panel space-y-6">
             <div class="grid gap-4 md:grid-cols-2">
-                <div class="md:col-span-2"><label for="appointment_patient_id">Patient<span class="required-mark">*</span></label><select class="form-input mt-2" id="appointment_patient_id" name="patient_id" required><option value="">Select patient</option><?php foreach ($patients as $patient): ?><option value="<?= e((string) $patient['id']); ?>"><?= e((string) $patient['patient_number'] . ' - ' . clinical_form_patient_name($patient)); ?></option><?php endforeach; ?></select></div>
+                <div class="md:col-span-2">
+                    <label for="appointment_patient_search">Patient<span class="required-mark">*</span></label>
+                    <div class="patient-search-shell mt-2" data-patient-search data-search-url="<?= e(base_url('index.php?action=patient-search')); ?>">
+                        <input id="appointment_patient_id" name="patient_id" type="hidden" value="">
+                        <input
+                            class="form-input patient-search-input"
+                            id="appointment_patient_search"
+                            type="text"
+                            placeholder="Search by patient number, name, or phone"
+                            autocomplete="off"
+                            data-patient-search-input
+                            required
+                        >
+                        <div class="patient-search-icon" aria-hidden="true">
+                            <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <circle cx="11" cy="11" r="7"></circle>
+                                <path d="M20 20l-3.5-3.5"></path>
+                            </svg>
+                        </div>
+                        <div class="absolute left-0 right-0 top-full z-20 mt-2 hidden rounded-2xl border border-hospital-borderSoft bg-white shadow-xl" data-patient-search-results></div>
+                    </div>
+                </div>
                 <div><label for="appointment_department_id">Department<span class="required-mark">*</span></label><select class="form-input mt-2" id="appointment_department_id" name="department_id" required><option value="">Select department</option><?php foreach ($departments as $department): ?><option value="<?= e((string) $department['id']); ?>"><?= e((string) $department['name']); ?></option><?php endforeach; ?></select></div>
                 <div><label for="appointment_doctor_id">Doctor</label><select class="form-input mt-2" id="appointment_doctor_id" name="doctor_id"><option value="">Select doctor</option><?php foreach ($doctors as $doctor): ?><option value="<?= e((string) $doctor['id']); ?>"><?= e((string) clinical_form_doctor_name($doctor) . ' - ' . ($doctor['department_name'] ?? '')); ?></option><?php endforeach; ?></select></div>
-                <div><label for="appointment_date">Appointment Date & Time<span class="required-mark">*</span></label><input class="form-input mt-2" id="appointment_date" name="appointment_date" type="datetime-local" required></div>
+                <div><label for="appointment_date">Appointment Date & Time<span class="required-mark">*</span></label><input class="form-input mt-2" id="appointment_date" name="appointment_date" type="datetime-local" data-future-datetime required></div>
                 <div><label for="appointment_status">Status<span class="required-mark">*</span></label><select class="form-input mt-2" id="appointment_status" name="status" required><option value="scheduled">Scheduled</option><option value="confirmed">Confirmed</option><option value="cancelled">Cancelled</option><option value="completed">Completed</option><option value="no_show">No Show</option></select></div>
             </div>
         </article>
@@ -322,6 +343,203 @@ function render_appointment_modal_form(array $patients, array $departments, arra
             <div class="flex flex-wrap gap-3 pt-2"><button class="btn btn-primary" type="submit">Book Appointment</button><button class="btn btn-secondary" type="reset">Reset Form</button></div>
         </article>
     </form>
+    <?php
+
+    return (string) ob_get_clean();
+}
+
+function render_appointment_reschedule_modal_form(array $appointments): string
+{
+    ob_start();
+    ?>
+    <form class="grid gap-6 xl:grid-cols-[1fr_1fr]" method="post">
+        <input type="hidden" name="form_action" value="reschedule_appointment">
+        <article class="panel space-y-6">
+            <div class="grid gap-4">
+                <div>
+                    <label for="reschedule_appointment_id">Existing Appointment<span class="required-mark">*</span></label>
+                    <select class="form-input mt-2" id="reschedule_appointment_id" name="appointment_id" required>
+                        <option value="">Select booked appointment</option>
+                        <?php foreach ($appointments as $appointment): ?>
+                            <?php
+                            $doctorName = trim(implode(' ', array_filter([
+                                $appointment['staff_first_name'] ?? '',
+                                $appointment['staff_last_name'] ?? '',
+                            ], static fn ($value): bool => trim((string) $value) !== '')));
+                            $appointmentLabelParts = [
+                                (string) ($appointment['patient_number'] ?? '-'),
+                                clinical_form_patient_name($appointment),
+                                (string) ($appointment['department_name'] ?? '-'),
+                                (string) ($appointment['appointment_date'] ?? '-'),
+                                ucfirst(str_replace('_', ' ', (string) ($appointment['status'] ?? 'scheduled'))),
+                            ];
+                            if ($doctorName !== '') {
+                                $appointmentLabelParts[] = $doctorName;
+                            }
+                            ?>
+                            <option value="<?= e((string) $appointment['id']); ?>"><?= e(implode(' - ', $appointmentLabelParts)); ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+                <div>
+                    <label for="reschedule_appointment_date">New Date & Time<span class="required-mark">*</span></label>
+                    <input class="form-input mt-2" id="reschedule_appointment_date" name="appointment_date" type="datetime-local" data-future-datetime required>
+                </div>
+                <div>
+                    <label for="reschedule_appointment_status">Updated Status<span class="required-mark">*</span></label>
+                    <select class="form-input mt-2" id="reschedule_appointment_status" name="status" required>
+                        <option value="scheduled">Scheduled</option>
+                        <option value="confirmed">Confirmed</option>
+                        <option value="cancelled">Cancelled</option>
+                        <option value="completed">Completed</option>
+                        <option value="no_show">No Show</option>
+                    </select>
+                </div>
+            </div>
+        </article>
+        <article class="panel space-y-4">
+            <div>
+                <label for="reschedule_notes">Reschedule Notes</label>
+                <textarea class="form-input mt-2 min-h-[220px] py-3" id="reschedule_notes" name="reschedule_notes" placeholder="Reason for the date/time change, caller notes, or follow-up instructions"></textarea>
+            </div>
+            <div class="rounded-xl border border-hospital-borderSoft bg-white px-4 py-4">
+                <p class="text-sm font-bold text-hospital-ink">How this works</p>
+                <p class="mt-2 text-sm leading-6 text-hospital-secondary">Only appointments that already exist in the database appear here. You are updating the selected appointment record, not creating a new one.</p>
+            </div>
+            <div class="flex flex-wrap gap-3 pt-2"><button class="btn btn-primary" type="submit">Save Reschedule</button><button class="btn btn-secondary" type="reset">Reset Form</button></div>
+        </article>
+    </form>
+    <?php
+
+    return (string) ob_get_clean();
+}
+
+function render_appointment_calendar_modal_content(array $calendar): string
+{
+    $yearLabel = (string) ($calendar['year_label'] ?? date('Y'));
+    $currentMonthKey = (string) ($calendar['current_month_key'] ?? '');
+    $weekdays = $calendar['weekdays'] ?? [];
+    $months = is_array($calendar['months'] ?? null) ? $calendar['months'] : [];
+
+    ob_start();
+    ?>
+    <div class="space-y-6" data-appointment-calendar data-default-month="<?= e($currentMonthKey); ?>">
+        <div class="rounded-xl border border-hospital-borderSoft bg-white px-5 py-5">
+            <div class="flex flex-wrap items-center justify-between gap-4">
+                <div>
+                    <p class="text-sm font-bold text-hospital-ink">Appointment Year View</p>
+                    <p class="mt-1 text-sm text-hospital-secondary">Select a month in <?= e($yearLabel); ?> to review appointments saved in the database.</p>
+                </div>
+                <span class="badge badge-info"><?= e($yearLabel); ?></span>
+            </div>
+
+            <div class="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                <?php foreach ($months as $month): ?>
+                    <?php
+                    $monthKey = (string) ($month['key'] ?? '');
+                    $isCurrentMonth = (bool) ($month['is_current'] ?? false);
+                    $appointmentCount = (int) ($month['appointment_count'] ?? 0);
+                    ?>
+                    <button
+                        class="rounded-2xl border px-4 py-4 text-left transition <?= $isCurrentMonth ? 'border-hospital-primary bg-hospital-primary/5 shadow-[0_16px_30px_rgba(37,99,235,0.12)]' : 'border-hospital-borderSoft bg-slate-50/60 hover:border-hospital-primary/40 hover:bg-hospital-primary/5'; ?>"
+                        type="button"
+                        data-calendar-month-button
+                        data-month-key="<?= e($monthKey); ?>"
+                        aria-pressed="<?= $isCurrentMonth ? 'true' : 'false'; ?>"
+                    >
+                        <div class="flex items-start justify-between gap-4">
+                            <div>
+                                <p class="text-base font-bold <?= $isCurrentMonth ? 'text-hospital-primary' : 'text-hospital-ink'; ?>"><?= e((string) ($month['label'] ?? 'Month')); ?></p>
+                                <p class="mt-1 text-sm text-hospital-secondary"><?= e((string) ($month['month_label'] ?? '')); ?></p>
+                            </div>
+                            <span class="badge badge-info"><?= e((string) $appointmentCount); ?></span>
+                        </div>
+                        <p class="mt-4 text-xs font-medium uppercase tracking-[0.14em] text-hospital-muted"><?= e($appointmentCount === 1 ? '1 Appointment' : $appointmentCount . ' Appointments'); ?></p>
+                    </button>
+                <?php endforeach; ?>
+            </div>
+        </div>
+
+        <?php foreach ($months as $month): ?>
+            <?php
+            $monthKey = (string) ($month['key'] ?? '');
+            $monthLabel = (string) ($month['month_label'] ?? 'Appointment Calendar');
+            $days = is_array($month['days'] ?? null) ? $month['days'] : [];
+            $agenda = is_array($month['agenda'] ?? null) ? $month['agenda'] : [];
+            $isCurrentMonth = (bool) ($month['is_current'] ?? false);
+            ?>
+            <section class="space-y-6" data-calendar-month-panel data-month-key="<?= e($monthKey); ?>"<?= $isCurrentMonth ? '' : ' hidden'; ?>>
+                <div class="rounded-xl border border-hospital-borderSoft bg-white px-5 py-5">
+                    <div class="flex items-center justify-between gap-4">
+                        <div>
+                            <p class="text-sm font-bold text-hospital-ink">Monthly Calendar</p>
+                            <p class="mt-1 text-sm text-hospital-secondary"><?= e($monthLabel); ?></p>
+                        </div>
+                        <span class="badge badge-info">Live Database</span>
+                    </div>
+
+                    <div class="mt-5 grid grid-cols-7 gap-3">
+                        <?php foreach ($days as $day): ?>
+                            <div class="min-h-[120px] rounded-2xl border px-3 py-3 <?= ($day['is_current_month'] ?? false) ? 'border-hospital-borderSoft bg-white' : 'border-transparent bg-slate-50/80'; ?>">
+                                <div class="flex items-center justify-between gap-2">
+                                    <span class="text-sm font-bold <?= ($day['is_today'] ?? false) ? 'text-hospital-primary' : 'text-hospital-ink'; ?>"><?= e((string) ($day['day_number'] ?? '')); ?></span>
+                                    <?php if ((int) ($day['appointment_count'] ?? 0) > 0): ?>
+                                        <span class="badge badge-info"><?= e((string) $day['appointment_count']); ?></span>
+                                    <?php endif; ?>
+                                </div>
+                                <div class="mt-3 space-y-2">
+                                    <?php foreach (($day['items'] ?? []) as $item): ?>
+                                        <div class="rounded-xl bg-hospital-primary/5 px-2 py-2">
+                                            <p class="text-xs font-bold text-hospital-primary"><?= e((string) ($item['time'] ?? '-')); ?></p>
+                                            <p class="mt-1 text-xs font-semibold text-hospital-ink"><?= e((string) ($item['patient'] ?? '-')); ?></p>
+                                            <p class="mt-1 text-[11px] text-hospital-secondary"><?= e((string) ($item['department'] ?? '-')); ?></p>
+                                        </div>
+                                    <?php endforeach; ?>
+                                </div>
+                            </div>
+                        <?php endforeach; ?>
+                    </div>
+                </div>
+
+                <div class="rounded-xl border border-hospital-borderSoft bg-white px-5 py-5">
+                    <div class="flex items-center justify-between gap-4">
+                        <div>
+                            <p class="text-sm font-bold text-hospital-ink">Month Agenda</p>
+                            <p class="mt-1 text-sm text-hospital-secondary">Appointments already booked inside <?= e($monthLabel); ?>.</p>
+                        </div>
+                        <span class="badge badge-info"><?= e((string) count($agenda)); ?> Days</span>
+                    </div>
+                    <div class="mt-5 space-y-4">
+                        <?php if ($agenda === []): ?>
+                            <p class="text-sm text-hospital-secondary">No appointments found in this month yet.</p>
+                        <?php endif; ?>
+                        <?php foreach ($agenda as $group): ?>
+                            <div class="rounded-xl border border-hospital-borderSoft bg-slate-50/70 px-4 py-4">
+                                <div class="flex items-center justify-between gap-3">
+                                    <p class="text-sm font-bold text-hospital-ink"><?= e((string) ($group['date_label'] ?? '')); ?></p>
+                                    <span class="badge badge-info"><?= e((string) ($group['count'] ?? 0)); ?> Appointments</span>
+                                </div>
+                                <div class="mt-4 space-y-3">
+                                    <?php foreach (($group['items'] ?? []) as $item): ?>
+                                        <div class="flex items-start justify-between gap-4 rounded-xl bg-white px-4 py-3">
+                                            <div>
+                                                <p class="text-sm font-bold text-hospital-ink"><?= e((string) ($item['patient'] ?? '-')); ?></p>
+                                                <p class="mt-1 text-sm text-hospital-secondary"><?= e((string) (($item['department'] ?? '-') . ' • ' . ($item['doctor'] ?? '-'))); ?></p>
+                                            </div>
+                                            <div class="text-right">
+                                                <p class="text-sm font-bold text-hospital-primary"><?= e((string) ($item['time'] ?? '-')); ?></p>
+                                                <span class="status-pill <?= e((string) ($item['status_class'] ?? 'badge-info')); ?>"><?= e((string) ($item['status'] ?? 'Scheduled')); ?></span>
+                                            </div>
+                                        </div>
+                                    <?php endforeach; ?>
+                                </div>
+                            </div>
+                        <?php endforeach; ?>
+                    </div>
+                </div>
+            </section>
+        <?php endforeach; ?>
+    </div>
     <?php
 
     return (string) ob_get_clean();

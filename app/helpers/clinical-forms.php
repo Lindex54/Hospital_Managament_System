@@ -49,6 +49,53 @@ function clinical_form_fetch_patients(int $limit = 100): array
     return $statement->fetchAll(PDO::FETCH_ASSOC);
 }
 
+function clinical_form_search_patients(string $query = '', int $limit = 15): array
+{
+    $limit = max(1, min($limit, 25));
+    $normalizedQuery = trim($query);
+
+    if ($normalizedQuery === '') {
+        $statement = clinical_forms_pdo()->prepare(
+            'SELECT id, patient_number, first_name, middle_name, last_name, phone
+             FROM patients
+             ORDER BY created_at DESC, id DESC
+             LIMIT :limit_value'
+        );
+        $statement->bindValue(':limit_value', $limit, PDO::PARAM_INT);
+        $statement->execute();
+
+        return $statement->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    $searchTerm = '%' . $normalizedQuery . '%';
+    $statement = clinical_forms_pdo()->prepare(
+        'SELECT id, patient_number, first_name, middle_name, last_name, phone
+         FROM patients
+         WHERE patient_number LIKE :search
+            OR first_name LIKE :search
+            OR middle_name LIKE :search
+            OR last_name LIKE :search
+            OR CONCAT_WS(\' \', first_name, middle_name, last_name) LIKE :search
+            OR phone LIKE :search
+         ORDER BY
+            CASE
+                WHEN patient_number LIKE :starts_with THEN 0
+                WHEN first_name LIKE :starts_with THEN 1
+                WHEN last_name LIKE :starts_with THEN 2
+                ELSE 3
+            END,
+            created_at DESC,
+            id DESC
+         LIMIT :limit_value'
+    );
+    $statement->bindValue(':search', $searchTerm, PDO::PARAM_STR);
+    $statement->bindValue(':starts_with', $normalizedQuery . '%', PDO::PARAM_STR);
+    $statement->bindValue(':limit_value', $limit, PDO::PARAM_INT);
+    $statement->execute();
+
+    return $statement->fetchAll(PDO::FETCH_ASSOC);
+}
+
 function clinical_form_fetch_doctors(int $limit = 100): array
 {
     $statement = clinical_forms_pdo()->prepare(
@@ -83,6 +130,26 @@ function clinical_form_fetch_appointments(int $limit = 100): array
          FROM appointments
          INNER JOIN patients ON patients.id = appointments.patient_id
          INNER JOIN departments ON departments.id = appointments.department_id
+         ORDER BY appointments.appointment_date DESC, appointments.id DESC
+         LIMIT :limit_value'
+    );
+    $statement->bindValue(':limit_value', $limit, PDO::PARAM_INT);
+    $statement->execute();
+
+    return $statement->fetchAll(PDO::FETCH_ASSOC);
+}
+
+function clinical_form_fetch_all_appointments(int $limit = 200): array
+{
+    $statement = clinical_forms_pdo()->prepare(
+        'SELECT appointments.id, appointments.appointment_date, appointments.status, appointments.reason,
+                patients.patient_number, patients.first_name, patients.middle_name, patients.last_name,
+                departments.name AS department_name,
+                staff.first_name AS staff_first_name, staff.last_name AS staff_last_name
+         FROM appointments
+         INNER JOIN patients ON patients.id = appointments.patient_id
+         LEFT JOIN departments ON departments.id = appointments.department_id
+         LEFT JOIN staff ON staff.id = appointments.doctor_id
          ORDER BY appointments.appointment_date DESC, appointments.id DESC
          LIMIT :limit_value'
     );

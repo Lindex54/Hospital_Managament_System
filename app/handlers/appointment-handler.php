@@ -30,6 +30,43 @@ function appointment_get_flash(): ?array
     return $flash;
 }
 
+function normalizeAppointmentDate(string $value): string
+{
+    $appointmentDate = str_replace('T', ' ', trim($value));
+    $appointmentTimestamp = strtotime($appointmentDate);
+
+    if ($appointmentTimestamp === false) {
+        throw new RuntimeException('Appointment date and time is invalid.');
+    }
+
+    if ($appointmentTimestamp <= time()) {
+        throw new RuntimeException('Appointment date and time must be in the future.');
+    }
+
+    return date('Y-m-d H:i:s', $appointmentTimestamp);
+}
+
+function normalizeAppointmentStatus(string $value): string
+{
+    $status = trim($value);
+    $allowedStatuses = ['scheduled', 'confirmed', 'cancelled', 'completed', 'no_show'];
+
+    return in_array($status, $allowedStatuses, true) ? $status : 'scheduled';
+}
+
+function resolveAppointmentCreatedBy(): ?int
+{
+    $currentUser = getCurrentUser();
+
+    if (($currentUser['is_demo_user'] ?? false) === true || !isset($currentUser['id'])) {
+        return null;
+    }
+
+    $currentUserId = (int) $currentUser['id'];
+
+    return $currentUserId > 0 ? $currentUserId : null;
+}
+
 function createAppointment(array $data): int
 {
     $errors = validate_required($data, [
@@ -45,15 +82,9 @@ function createAppointment(array $data): int
     }
 
     $pdo = database_connection();
-    $currentUser = getCurrentUser();
-    $status = (string) ($data['status'] ?? 'scheduled');
-    $allowedStatuses = ['scheduled', 'confirmed', 'cancelled', 'completed', 'no_show'];
-
-    if (!in_array($status, $allowedStatuses, true)) {
-        $status = 'scheduled';
-    }
-
-    $appointmentDate = str_replace('T', ' ', (string) $data['appointment_date']);
+    $status = normalizeAppointmentStatus((string) ($data['status'] ?? 'scheduled'));
+    $appointmentDate = normalizeAppointmentDate((string) $data['appointment_date']);
+    $createdBy = resolveAppointmentCreatedBy();
 
     $statement = $pdo->prepare(
         'INSERT INTO appointments (
@@ -85,10 +116,69 @@ function createAppointment(array $data): int
         'reason' => trim((string) $data['reason']),
         'status' => $status,
         'notes' => trim((string) ($data['notes'] ?? '')) !== '' ? trim((string) $data['notes']) : null,
-        'created_by' => isset($currentUser['id']) ? (int) $currentUser['id'] : null,
+        'created_by' => $createdBy,
     ]);
 
     return (int) $pdo->lastInsertId();
+}
+
+function rescheduleAppointment(array $data): int
+{
+    $errors = validate_required($data, [
+        'appointment_id',
+        'appointment_date',
+        'status',
+    ]);
+
+    if ($errors !== []) {
+        throw new RuntimeException((string) reset($errors));
+    }
+
+    $pdo = database_connection();
+    $appointmentId = (int) $data['appointment_id'];
+    $status = normalizeAppointmentStatus((string) ($data['status'] ?? 'scheduled'));
+    $appointmentDate = normalizeAppointmentDate((string) $data['appointment_date']);
+    $notes = trim((string) ($data['reschedule_notes'] ?? ''));
+
+    $lookupStatement = $pdo->prepare(
+        'SELECT id, notes
+         FROM appointments
+         WHERE id = :id
+         LIMIT 1'
+    );
+    $lookupStatement->execute([
+        'id' => $appointmentId,
+    ]);
+    $appointment = $lookupStatement->fetch(PDO::FETCH_ASSOC);
+
+    if (!is_array($appointment)) {
+        throw new RuntimeException('Select an existing appointment to reschedule.');
+    }
+
+    $updatedNotes = trim((string) ($appointment['notes'] ?? ''));
+    $rescheduleMessage = 'Rescheduled on ' . date('d M Y h:i A') . '.';
+
+    if ($notes !== '') {
+        $rescheduleMessage .= ' ' . $notes;
+    }
+
+    $updatedNotes = trim($updatedNotes !== '' ? $updatedNotes . PHP_EOL . $rescheduleMessage : $rescheduleMessage);
+
+    $updateStatement = $pdo->prepare(
+        'UPDATE appointments
+         SET appointment_date = :appointment_date,
+             status = :status,
+             notes = :notes
+         WHERE id = :id'
+    );
+    $updateStatement->execute([
+        'appointment_date' => $appointmentDate,
+        'status' => $status,
+        'notes' => $updatedNotes,
+        'id' => $appointmentId,
+    ]);
+
+    return $appointmentId;
 }
 
 function handle_appointment_submission(): void
@@ -101,15 +191,22 @@ function handle_appointment_submission(): void
         return;
     }
 
-    if (($_POST['form_action'] ?? '') !== 'create_appointment') {
+    $formAction = (string) ($_POST['form_action'] ?? '');
+
+    if (!in_array($formAction, ['create_appointment', 'reschedule_appointment'], true)) {
         return;
     }
 
     requirePermission('appointments.view');
 
     try {
-        $appointmentId = createAppointment($_POST);
-        appointment_flash('success', 'Appointment created successfully. Appointment record ID: ' . $appointmentId . '.');
+        if ($formAction === 'create_appointment') {
+            $appointmentId = createAppointment($_POST);
+            appointment_flash('success', 'Appointment created successfully. Appointment record ID: ' . $appointmentId . '.');
+        } else {
+            $appointmentId = rescheduleAppointment($_POST);
+            appointment_flash('success', 'Appointment rescheduled successfully. Appointment record ID: ' . $appointmentId . '.');
+        }
     } catch (Throwable $exception) {
         appointment_flash('error', $exception->getMessage());
     }

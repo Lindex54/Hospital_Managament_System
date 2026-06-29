@@ -312,6 +312,27 @@
     @apply text-helper font-normal;
   }
 
+  .patient-search-shell {
+    @apply relative;
+  }
+
+  .patient-search-input {
+    padding-right: 4rem;
+  }
+
+  .patient-search-icon {
+    background-color: #f8fbff;
+    border: 1px solid var(--border-soft);
+    color: var(--text-muted);
+    @apply pointer-events-none absolute right-2 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full transition;
+  }
+
+  .patient-search-shell:focus-within .patient-search-icon {
+    background-color: var(--primary-soft);
+    border-color: rgba(11, 94, 215, 0.18);
+    color: var(--primary);
+  }
+
   .required-mark {
     color: var(--danger);
     @apply ml-1 font-bold;

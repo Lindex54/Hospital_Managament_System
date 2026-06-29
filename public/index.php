@@ -7,6 +7,37 @@ require_once dirname(__DIR__) . '/app/helpers/functions.php';
 require_once dirname(__DIR__) . '/app/helpers/auth.php';
 require_once dirname(__DIR__) . '/app/helpers/data.php';
 
+if (strtolower(trim((string) ($_GET['action'] ?? ''))) === 'patient-search') {
+    header('Content-Type: application/json; charset=UTF-8');
+
+    if (!hasPermission('appointments.view')) {
+        http_response_code(403);
+        echo json_encode([
+            'error' => 'You do not have permission to search patients.',
+        ]);
+        exit;
+    }
+
+    require_once dirname(__DIR__) . '/app/helpers/clinical-forms.php';
+
+    $query = trim((string) ($_GET['q'] ?? ''));
+    $patients = clinical_form_search_patients($query, 15);
+
+    $results = array_map(static function (array $patient): array {
+        return [
+            'id' => (int) ($patient['id'] ?? 0),
+            'patient_number' => (string) ($patient['patient_number'] ?? ''),
+            'name' => clinical_form_patient_name($patient),
+            'phone' => (string) ($patient['phone'] ?? ''),
+        ];
+    }, $patients);
+
+    echo json_encode([
+        'results' => $results,
+    ]);
+    exit;
+}
+
 /*
 |--------------------------------------------------------------------------
 | Central page registry

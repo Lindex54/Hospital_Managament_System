@@ -309,6 +309,19 @@ function hospital_module_render_bed_room_overview(array $roomRows, array $bedRow
     return (string) ob_get_clean();
 }
 
+function hospital_module_render_modal_html(array $config): string
+{
+    ob_start();
+    render_clinical_modal(
+        (string) $config['modal_id'],
+        (string) $config['title'],
+        (string) $config['subtitle'],
+        (string) $config['content']
+    );
+
+    return (string) ob_get_clean();
+}
+
 function hospital_module_room_availability_status(string $roomType, int $availableBeds, int $occupiedBeds): array
 {
     $normalizedType = strtolower(trim($roomType));
@@ -328,6 +341,115 @@ function hospital_module_room_availability_status(string $roomType, int $availab
     }
 
     return ['Available', 'status-success'];
+}
+
+function hospital_module_build_appointments_calendar_data(): array
+{
+    $pdo = database_connection();
+    $yearStart = new DateTimeImmutable(date('Y-01-01 00:00:00'));
+    $yearEnd = new DateTimeImmutable(date('Y-12-31 23:59:59'));
+    $currentMonthKey = date('Y-m');
+
+    $statement = $pdo->prepare(
+        'SELECT appointments.appointment_date, appointments.status,
+                patients.first_name, patients.middle_name, patients.last_name,
+                departments.name AS department_name,
+                staff.first_name AS staff_first_name, staff.last_name AS staff_last_name
+         FROM appointments
+         INNER JOIN patients ON patients.id = appointments.patient_id
+         LEFT JOIN departments ON departments.id = appointments.department_id
+         LEFT JOIN staff ON staff.id = appointments.doctor_id
+         WHERE appointments.appointment_date BETWEEN :start_date AND :end_date
+         ORDER BY appointments.appointment_date ASC, appointments.id ASC'
+    );
+    $statement->execute([
+        'start_date' => $yearStart->format('Y-m-d H:i:s'),
+        'end_date' => $yearEnd->format('Y-m-d H:i:s'),
+    ]);
+    $records = $statement->fetchAll(PDO::FETCH_ASSOC);
+
+    $recordsByDate = [];
+    $countsByMonth = [];
+    foreach ($records as $record) {
+        $appointmentTimestamp = strtotime((string) $record['appointment_date']);
+        $dateKey = date('Y-m-d', $appointmentTimestamp);
+        $monthKey = date('Y-m', $appointmentTimestamp);
+        $recordsByDate[$dateKey][] = [
+            'time' => hospital_module_format_time($record['appointment_date'] ?? null),
+            'patient' => hospital_module_patient_display_name($record),
+            'department' => (string) ($record['department_name'] ?? '-'),
+            'doctor' => hospital_module_staff_display_name($record),
+            'status' => ucfirst(str_replace('_', ' ', (string) ($record['status'] ?? 'scheduled'))),
+            'status_class' => hospital_module_badge_class((string) ($record['status'] ?? 'scheduled')),
+        ];
+        $countsByMonth[$monthKey] = ($countsByMonth[$monthKey] ?? 0) + 1;
+    }
+
+    $selectedMonthKey = $currentMonthKey;
+    if (($countsByMonth[$selectedMonthKey] ?? 0) === 0 && $countsByMonth !== []) {
+        ksort($countsByMonth);
+        $selectedMonthKey = (string) array_key_first($countsByMonth);
+    }
+
+    $months = [];
+    for ($monthNumber = 1; $monthNumber <= 12; $monthNumber++) {
+        $monthStart = new DateTimeImmutable(sprintf('%s-%02d-01 00:00:00', $yearStart->format('Y'), $monthNumber));
+        $monthEnd = $monthStart->modify('last day of this month 23:59:59');
+        $monthKey = $monthStart->format('Y-m');
+        $gridStart = $monthStart->modify('-' . ((int) $monthStart->format('N') - 1) . ' days');
+        $gridEnd = $gridStart->modify('+41 days');
+        $days = [];
+        $agendaGroups = [];
+        $cursor = $gridStart;
+        $todayKey = date('Y-m-d');
+
+        while ($cursor <= $gridEnd) {
+            $dateKey = $cursor->format('Y-m-d');
+            $items = $recordsByDate[$dateKey] ?? [];
+            $itemsForMonth = $cursor >= $monthStart && $cursor <= $monthEnd ? $items : [];
+            $days[] = [
+                'day_number' => $cursor->format('j'),
+                'is_current_month' => $cursor->format('Y-m') === $monthKey,
+                'is_today' => $dateKey === $todayKey,
+                'appointment_count' => count($itemsForMonth),
+                'items' => array_slice($itemsForMonth, 0, 3),
+            ];
+            $cursor = $cursor->modify('+1 day');
+        }
+
+        $agendaCursor = $monthStart;
+        while ($agendaCursor <= $monthEnd) {
+            $dateKey = $agendaCursor->format('Y-m-d');
+            $items = $recordsByDate[$dateKey] ?? [];
+
+            if ($items !== []) {
+                $agendaGroups[] = [
+                    'date_label' => $agendaCursor->format('D, d M Y'),
+                    'count' => count($items),
+                    'items' => $items,
+                ];
+            }
+
+            $agendaCursor = $agendaCursor->modify('+1 day');
+        }
+
+        $months[] = [
+            'key' => $monthKey,
+            'label' => $monthStart->format('F'),
+            'month_label' => $monthStart->format('F Y'),
+            'appointment_count' => (int) ($countsByMonth[$monthKey] ?? 0),
+            'is_current' => $monthKey === $selectedMonthKey,
+            'days' => $days,
+            'agenda' => $agendaGroups,
+        ];
+    }
+
+    return [
+        'year_label' => $yearStart->format('Y'),
+        'current_month_key' => $selectedMonthKey,
+        'weekdays' => ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
+        'months' => $months,
+    ];
 }
 
 function hospital_module_patients_page_data(array $page, ?int $limit = 50): array
@@ -559,7 +681,7 @@ function hospital_module_appointments_page_data(array $page, ?int $limit = 50): 
     ];
 
     $statement = $pdo->query(hospital_module_apply_limit(
-        "SELECT appointments.appointment_date, appointments.status, appointments.reason,
+        "SELECT appointments.id, appointments.appointment_date, appointments.status, appointments.reason,
                 patients.first_name, patients.middle_name, patients.last_name,
                 staff.first_name AS staff_first_name, staff.last_name AS staff_last_name,
                 departments.name AS department_name
@@ -579,10 +701,12 @@ function hospital_module_appointments_page_data(array $page, ?int $limit = 50): 
             hospital_module_staff_display_name($appointment),
             (string) ($appointment['department_name'] ?? '-'),
             ucfirst(str_replace('_', ' ', (string) ($appointment['status'] ?? '-'))),
-            trim((string) ($appointment['reason'] ?? '')) !== '' ? 'Reasoned' : 'Appointment',
+            trim((string) ($appointment['reason'] ?? '')) !== '' ? 'Booked' : 'Appointment',
         ];
     }
 
+    $page['columns'] = ['Time', 'Patient', 'Doctor', 'Department', 'Status', 'Type'];
+    $page['badge_columns'] = [4];
     $page['stats'] = $stats;
     $page['rows'] = $rows;
     $page['empty_message'] = 'No appointments booked yet.';
@@ -1040,10 +1164,17 @@ function render_hospital_module_page(string $key, array $actionAttributes = []):
     $catalog = hospital_module_page_catalog();
     $page = $catalog[$key] ?? null;
     $modalConfig = hospital_module_modal_config($key);
+    $additionalModals = hospital_module_additional_modals($key);
 
     if ($modalConfig !== null) {
         $actionAttributes[$modalConfig['action_label']] = [
             'data-modal-open' => $modalConfig['modal_id'],
+        ];
+    }
+
+    foreach ($additionalModals as $additionalModal) {
+        $actionAttributes[(string) $additionalModal['action_label']] = [
+            'data-modal-open' => (string) $additionalModal['modal_id'],
         ];
     }
 
@@ -1143,12 +1274,43 @@ function render_hospital_module_page(string $key, array $actionAttributes = []):
         );
     }
 
+    foreach ($additionalModals as $additionalModal) {
+        echo hospital_module_render_modal_html($additionalModal);
+    }
+
     render_clinical_modal(
         $recordsModalId,
         $page['title'] . ' Records',
         'Showing all available records for this module.',
         hospital_module_render_records_table($fullRecordsPage)
     );
+}
+
+function hospital_module_additional_modals(string $key): array
+{
+    if ($key !== 'appointments') {
+        return [];
+    }
+
+    $appointments = clinical_form_fetch_all_appointments();
+    $calendar = hospital_module_build_appointments_calendar_data();
+
+    return [
+        [
+            'action_label' => 'Reschedule',
+            'modal_id' => 'appointment-reschedule',
+            'title' => 'Reschedule Appointment',
+            'subtitle' => 'Update the date, time, or status of an existing appointment from the database.',
+            'content' => render_appointment_reschedule_modal_form($appointments),
+        ],
+        [
+            'action_label' => 'Calendar View',
+            'modal_id' => 'appointment-calendar',
+            'title' => 'Appointment Calendar',
+            'subtitle' => 'Review appointments by day and upcoming agenda directly from the database.',
+            'content' => render_appointment_calendar_modal_content($calendar),
+        ],
+    ];
 }
 
 function hospital_module_modal_config(string $key): ?array
